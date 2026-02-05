@@ -49,6 +49,10 @@ export interface MomentsSettings {
 	openOnStartup: boolean;
 	/** Default view mode: "sidebar" or "tab" */
 	defaultViewMode: TimelineViewMode;
+
+	// Advanced settings
+	/** Enable debug logging to console */
+	debugMode: boolean;
 }
 
 /**
@@ -75,4 +79,7 @@ export const DEFAULT_SETTINGS: MomentsSettings = {
 	showImplicitMoments: true,
 	openOnStartup: false,
 	defaultViewMode: 'sidebar',
+
+	// Advanced settings
+	debugMode: false,
 };

@@ -207,5 +207,20 @@ export class MomentsSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					})
 			);
+
+		// Advanced settings section
+		new Setting(containerEl).setName('Advanced').setHeading();
+
+		new Setting(containerEl)
+			.setName('Debug mode')
+			.setDesc('Log plugin activity to the developer console for troubleshooting')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.debugMode)
+					.onChange(async (value) => {
+						this.plugin.settings.debugMode = value;
+						await this.plugin.saveSettings();
+					})
+			);
 	}
 }

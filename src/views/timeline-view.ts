@@ -4,6 +4,7 @@ import type { Moment, ImplicitMoment, TimelineFilter } from '../types';
 import { TIMELINE_VIEW_TYPE } from '../constants';
 import { formatDate } from '../core/date-parser';
 import { extractContentUnderHeading } from '../core/content-extractor';
+import { debug, debugTimed } from '../utils/debug';
 
 /**
  * Timeline view displaying moments grouped by day.
@@ -137,6 +138,9 @@ export class TimelineView extends ItemView {
 	}
 
 	async renderTimeline(): Promise<void> {
+		const done = debugTimed('Timeline render');
+		debug('Rendering timeline', { filter: this.filter });
+
 		this.timelineContentEl.empty();
 
 		// Reset pagination state
@@ -163,8 +167,15 @@ export class TimelineView extends ItemView {
 		// Get all dates
 		const allDates = new Set([...groupedByDate.keys(), ...this.allImplicitByDate.keys()]);
 
+		debug('Timeline data loaded', {
+			explicitMoments: this.allMoments.length,
+			implicitDates: this.allImplicitByDate.size,
+			totalDates: allDates.size,
+		});
+
 		if (allDates.size === 0) {
 			this.renderEmptyState();
+			done();
 			return;
 		}
 
@@ -179,6 +190,8 @@ export class TimelineView extends ItemView {
 
 		// Add "load more" button as fallback
 		this.addLoadMoreButton();
+
+		done();
 	}
 
 	private getStartMonth(): string {
@@ -596,6 +609,7 @@ export class TimelineView extends ItemView {
 	}
 
 	setDateFilter(startDate: string | null, endDate: string | null): void {
+		debug('Setting date filter', { startDate, endDate });
 		this.filter.startDate = startDate;
 		this.filter.endDate = endDate;
 
@@ -609,6 +623,7 @@ export class TimelineView extends ItemView {
 	}
 
 	clearFilter(): void {
+		debug('Clearing filter');
 		this.setDateFilter(null, null);
 	}
 

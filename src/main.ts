@@ -1,4 +1,4 @@
-import { Plugin, TFile, WorkspaceLeaf, Menu, MenuItem } from 'obsidian';
+import { Plugin, TFile, WorkspaceLeaf, Menu, MenuItem, debounce } from 'obsidian';
 import { MomentsSettings, DEFAULT_SETTINGS } from './settings/settings';
 import { MomentsSettingTab } from './settings/settings-tab';
 import { registerCommands } from './commands/index';
@@ -23,6 +23,7 @@ import {
 	detectPeriodicNoteType,
 	getDateRangeForPeriodicNote,
 } from './core/periodic-detection';
+import { setDebugMode, debug, debugTimed, debugCacheStats } from './utils/debug';
 
 /**
  * Moments plugin for Obsidian
@@ -34,9 +35,33 @@ export default class MomentsPlugin extends Plugin {
 	settings: MomentsSettings;
 	private momentCache: MomentCache;
 	private isScanning: boolean = false;
+	private pendingFileChanges: Set<string> = new Set();
+	private timelineRefreshPending: boolean = false;
+
+	// Debounced function to process pending file changes
+	private processPendingChanges = debounce(
+		() => {
+			void this.processFileChangeBatch();
+		},
+		500,
+		true
+	);
+
+	// Debounced timeline refresh
+	private debouncedTimelineRefresh = debounce(
+		() => {
+			this.doTimelineRefresh();
+		},
+		300,
+		true
+	);
 
 	async onload() {
 		await this.loadSettings();
+
+		// Initialize debug mode from settings
+		setDebugMode(this.settings.debugMode);
+		debug('Plugin loading');
 
 		// Initialize cache
 		this.momentCache = createMomentCache();
@@ -111,11 +136,11 @@ export default class MomentsPlugin extends Plugin {
 		// Add settings tab
 		this.addSettingTab(new MomentsSettingTab(this.app, this));
 
-		// Set up file event listeners for cache updates
+		// Set up file event listeners for cache updates (debounced)
 		this.registerEvent(
 			this.app.vault.on('create', (file) => {
 				if (file instanceof TFile && file.extension === 'md') {
-					void this.handleFileChange(file);
+					this.queueFileChange(file.path);
 				}
 			})
 		);
@@ -123,7 +148,7 @@ export default class MomentsPlugin extends Plugin {
 		this.registerEvent(
 			this.app.vault.on('modify', (file) => {
 				if (file instanceof TFile && file.extension === 'md') {
-					void this.handleFileChange(file);
+					this.queueFileChange(file.path);
 				}
 			})
 		);
@@ -131,7 +156,9 @@ export default class MomentsPlugin extends Plugin {
 		this.registerEvent(
 			this.app.vault.on('delete', (file) => {
 				if (file instanceof TFile && file.extension === 'md') {
+					debug('File deleted', { path: file.path });
 					removeMomentsForFile(this.momentCache, file.path);
+					this.scheduleTimelineRefresh();
 				}
 			})
 		);
@@ -139,8 +166,9 @@ export default class MomentsPlugin extends Plugin {
 		this.registerEvent(
 			this.app.vault.on('rename', (file, oldPath) => {
 				if (file instanceof TFile && file.extension === 'md') {
+					debug('File renamed', { from: oldPath, to: file.path });
 					removeMomentsForFile(this.momentCache, oldPath);
-					void this.handleFileChange(file);
+					this.queueFileChange(file.path);
 				}
 			})
 		);
@@ -188,8 +216,90 @@ export default class MomentsPlugin extends Plugin {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded ?? {});
 	}
 
-	async saveSettings() {
+	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
+		// Update debug mode when settings change
+		setDebugMode(this.settings.debugMode);
+		debug('Settings saved');
+	}
+
+	/**
+	 * Queue a file change for debounced processing.
+	 */
+	private queueFileChange(filePath: string): void {
+		this.pendingFileChanges.add(filePath);
+		this.processPendingChanges();
+	}
+
+	/**
+	 * Process all pending file changes in a batch.
+	 */
+	private async processFileChangeBatch(): Promise<void> {
+		if (this.pendingFileChanges.size === 0) return;
+
+		const files = Array.from(this.pendingFileChanges);
+		this.pendingFileChanges.clear();
+
+		debug('Processing file change batch', { count: files.length });
+		const done = debugTimed(`Processing ${files.length} file(s)`);
+
+		for (const filePath of files) {
+			const file = this.app.vault.getAbstractFileByPath(filePath);
+			if (file instanceof TFile) {
+				// Remove existing moments for this file
+				removeMomentsForFile(this.momentCache, filePath);
+				// Re-scan the file
+				await this.scanFile(file);
+			}
+		}
+
+		done();
+		this.logCacheStats();
+
+		// Schedule a single timeline refresh after batch processing
+		this.scheduleTimelineRefresh();
+	}
+
+	/**
+	 * Schedule a debounced timeline refresh.
+	 */
+	private scheduleTimelineRefresh(): void {
+		this.timelineRefreshPending = true;
+		this.debouncedTimelineRefresh();
+	}
+
+	/**
+	 * Actually perform the timeline refresh.
+	 */
+	private doTimelineRefresh(): void {
+		if (!this.timelineRefreshPending) return;
+		this.timelineRefreshPending = false;
+
+		const leaves = this.app.workspace.getLeavesOfType(TIMELINE_VIEW_TYPE);
+		if (leaves.length === 0) {
+			debug('Timeline refresh skipped - no views open');
+			return;
+		}
+
+		debug('Refreshing timeline views', { count: leaves.length });
+		for (const leaf of leaves) {
+			const view = leaf.view as TimelineView;
+			view.refresh();
+		}
+	}
+
+	/**
+	 * Log cache statistics for debugging.
+	 */
+	private logCacheStats(): void {
+		debugCacheStats({
+			totalMoments: Array.from(this.momentCache.byDate.values()).reduce(
+				(sum, arr) => sum + arr.length,
+				0
+			),
+			totalDates: this.momentCache.byDate.size,
+			totalFiles: this.momentCache.byFile.size,
+		});
 	}
 
 	/**
@@ -199,14 +309,19 @@ export default class MomentsPlugin extends Plugin {
 		if (this.isScanning) return;
 		this.isScanning = true;
 
+		const done = debugTimed('Full vault scan');
+
 		try {
 			const files = this.app.vault.getMarkdownFiles();
+			debug('Scanning vault', { fileCount: files.length });
 
 			for (const file of files) {
 				await this.scanFile(file);
 			}
 
 			this.momentCache.lastScan = Date.now();
+			done();
+			this.logCacheStats();
 		} finally {
 			this.isScanning = false;
 		}
@@ -216,6 +331,8 @@ export default class MomentsPlugin extends Plugin {
 	 * Scan a single file for moments.
 	 */
 	private async scanFile(file: TFile): Promise<void> {
+		let momentsFound = 0;
+
 		// Check if it's a standalone moment
 		if (isStandaloneMoment(file.name)) {
 			const moment = createStandaloneMomentFromFile(
@@ -225,6 +342,7 @@ export default class MomentsPlugin extends Plugin {
 			);
 			if (moment) {
 				addMomentToCache(this.momentCache, moment);
+				momentsFound++;
 			}
 		}
 
@@ -234,34 +352,14 @@ export default class MomentsPlugin extends Plugin {
 			const moments = scanFileForMoments(content, file.path);
 			for (const moment of moments) {
 				addMomentToCache(this.momentCache, moment);
+				momentsFound++;
 			}
 		} catch (error) {
 			console.error(`Failed to scan file ${file.path}:`, error);
 		}
-	}
 
-	/**
-	 * Handle file changes by re-scanning the file.
-	 */
-	private async handleFileChange(file: TFile): Promise<void> {
-		// Remove existing moments for this file
-		removeMomentsForFile(this.momentCache, file.path);
-
-		// Re-scan the file
-		await this.scanFile(file);
-
-		// Refresh timeline view if open
-		this.refreshTimelineView();
-	}
-
-	/**
-	 * Refresh the timeline view if it's open.
-	 */
-	private refreshTimelineView(): void {
-		const leaves = this.app.workspace.getLeavesOfType(TIMELINE_VIEW_TYPE);
-		for (const leaf of leaves) {
-			const view = leaf.view as TimelineView;
-			view.refresh();
+		if (momentsFound > 0) {
+			debug('Scanned file', { path: file.path, momentsFound });
 		}
 	}
 
@@ -269,12 +367,16 @@ export default class MomentsPlugin extends Plugin {
 	 * Get moments for display in the timeline.
 	 */
 	getMomentsForDisplay(filter: TimelineFilter): Moment[] {
+		debug('getMomentsForDisplay', { filter });
+
 		if (filter.startDate && filter.endDate) {
-			return getMomentsInDateRange(
+			const moments = getMomentsInDateRange(
 				this.momentCache,
 				filter.startDate,
 				filter.endDate
 			);
+			debug('Filtered moments retrieved', { count: moments.length });
+			return moments;
 		}
 
 		// Return all moments
@@ -288,6 +390,7 @@ export default class MomentsPlugin extends Plugin {
 			}
 		}
 
+		debug('All moments retrieved', { count: moments.length });
 		return moments;
 	}
 
