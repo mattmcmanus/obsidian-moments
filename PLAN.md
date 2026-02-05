@@ -521,36 +521,36 @@ When configured as homepage:
 
 ## Implementation Order
 
-### Milestone 1: Foundation
-1. Project setup - Update manifest, clean sample code
-2. Settings infrastructure - Types, defaults, settings tab
-3. Plugin detection - Detect Daily Notes / Periodic Notes settings
+### Milestone 1: Foundation ✅
+1. ✅ Project setup - Update manifest, clean sample code
+2. ✅ Settings infrastructure - Types, defaults, settings tab
+3. ✅ Plugin detection - Detect Daily Notes / Periodic Notes settings
 
-### Milestone 2: Moment Creation
-4. Moment parser - Date extraction from headings/filenames
-5. Moment modal UI - Title input, date input, validation
-6. Add inline moment command - Insert into current file
-7. Create standalone moment command - Create new file
+### Milestone 2: Moment Creation ✅
+4. ✅ Moment parser - Date extraction from headings/filenames
+5. ✅ Moment modal UI - Title input, date input, validation
+6. ✅ Add inline moment command - Insert into current file
+7. ✅ Create standalone moment command - Create new file
 
-### Milestone 3: Timeline View
-8. Basic timeline view - ItemView registration
-9. Empty state - Onboarding message and "Create first moment" button
-10. Moment scanner - Find all moments in vault
-11. Moment cache - Index and incremental updates
-12. Day sections - Grouped, collapsible day display
-13. Moment cards - Content embedding
-14. Implicit moments - Secondary display
+### Milestone 3: Timeline View ✅
+8. ✅ Basic timeline view - ItemView registration
+9. ✅ Empty state - Onboarding message and "Create first moment" button
+10. ✅ Moment scanner - Find all moments in vault
+11. ✅ Moment cache - Index and incremental updates
+12. ✅ Day sections - Grouped, collapsible day display
+13. ✅ Moment cards - Content embedding
+14. ✅ Implicit moments - Secondary display
 
-### Milestone 4: Filtering & Navigation
-15. Timeline navigation - Today, prev/next, date input
-16. Date range filtering - Manual filter controls
-17. Auto-filter - Periodic note detection and auto-filtering
+### Milestone 4: Filtering & Navigation ✅
+15. ✅ Timeline navigation - Today, prev/next, date input
+16. ✅ Date range filtering - Manual filter controls
+17. ✅ Auto-filter - Periodic note detection and auto-filtering
 
-### Milestone 5: Polish
-18. Mobile optimization - Touch UI, homepage mode
-19. Templates - Variable substitution
-20. Edge cases - Error handling, validation
-21. Performance tuning - Large vault testing
+### Milestone 5: Polish ✅
+18. ✅ Mobile optimization - Touch UI, responsive styles
+19. ✅ Templates - Variable substitution (template-engine.ts)
+20. ✅ Edge cases - Error handling, validation
+21. ✅ Homepage mode - Open timeline on startup setting
 
 ---
 
