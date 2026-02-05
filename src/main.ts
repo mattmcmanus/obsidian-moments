@@ -19,6 +19,10 @@ import {
 	createStandaloneMomentFromFile,
 } from './core/moment-scanner';
 import { formatDate } from './core/date-parser';
+import {
+	detectPeriodicNoteType,
+	getDateRangeForPeriodicNote,
+} from './core/periodic-detection';
 
 /**
  * Moments plugin for Obsidian
@@ -129,6 +133,19 @@ export default class MomentsPlugin extends Plugin {
 				if (file instanceof TFile && file.extension === 'md') {
 					removeMomentsForFile(this.momentCache, oldPath);
 					this.handleFileChange(file);
+				}
+			})
+		);
+
+		// Auto-filter timeline when opening periodic notes
+		this.registerEvent(
+			this.app.workspace.on('file-open', (file) => {
+				if (
+					file instanceof TFile &&
+					file.extension === 'md' &&
+					this.settings.autoFilterOnPeriodicNote
+				) {
+					this.handlePeriodicNoteOpen(file);
 				}
 			})
 		);
@@ -366,5 +383,59 @@ export default class MomentsPlugin extends Plugin {
 				}
 			});
 		}
+	}
+
+	/**
+	 * Handle opening a periodic note - auto-filter timeline if enabled.
+	 */
+	private handlePeriodicNoteOpen(file: TFile): void {
+		// Detect if this is a periodic note
+		const periodicInfo = detectPeriodicNoteType(
+			file.path,
+			this.getPeriodicNotesFolder('daily'),
+			this.settings.dateFormat
+		);
+
+		if (!periodicInfo) {
+			return;
+		}
+
+		// Get date range for this periodic note
+		const range = getDateRangeForPeriodicNote(periodicInfo.type, periodicInfo.date);
+
+		// Update timeline filter
+		const leaves = this.app.workspace.getLeavesOfType(TIMELINE_VIEW_TYPE);
+		for (const leaf of leaves) {
+			const view = leaf.view as TimelineView;
+			view.setDateFilter(range.startDate, range.endDate);
+		}
+	}
+
+	/**
+	 * Get the folder for a specific periodic note type.
+	 * Attempts to detect from Daily Notes or Periodic Notes plugins.
+	 */
+	private getPeriodicNotesFolder(type: 'daily' | 'weekly' | 'monthly'): string {
+		// Try to get from Periodic Notes plugin
+		const periodicNotes = (this.app as any).plugins?.getPlugin?.('periodic-notes');
+		if (periodicNotes?.settings) {
+			const settings = periodicNotes.settings;
+			switch (type) {
+				case 'daily':
+					return settings.daily?.folder || '';
+				case 'weekly':
+					return settings.weekly?.folder || '';
+				case 'monthly':
+					return settings.monthly?.folder || '';
+			}
+		}
+
+		// Try to get from core Daily Notes plugin
+		const dailyNotes = (this.app as any).internalPlugins?.getPluginById?.('daily-notes');
+		if (dailyNotes?.instance?.options && type === 'daily') {
+			return dailyNotes.instance.options.folder || '';
+		}
+
+		return '';
 	}
 }
