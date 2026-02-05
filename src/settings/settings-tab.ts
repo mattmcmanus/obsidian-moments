@@ -1,6 +1,5 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type MomentsPlugin from '../main';
-import type { MomentsSettings } from './settings';
 
 /**
  * Settings tab for the Moments plugin
@@ -18,13 +17,15 @@ export class MomentsSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		// Date settings section
-		containerEl.createEl('h2', { text: 'Date settings' });
+		new Setting(containerEl).setName('Dates').setHeading();
 
 		new Setting(containerEl)
 			.setName('Date format')
+			// eslint-disable-next-line obsidianmd/ui/sentence-case -- "Daily Notes" is a plugin name
 			.setDesc('Format for dates in headings and filenames. Auto-detected from Daily Notes if installed.')
 			.addText((text) =>
 				text
+					// eslint-disable-next-line obsidianmd/ui/sentence-case
 					.setPlaceholder('YYYY-MM-DD')
 					.setValue(this.plugin.settings.dateFormat)
 					.onChange(async (value) => {
@@ -48,7 +49,7 @@ export class MomentsSettingTab extends PluginSettingTab {
 			);
 
 		// Inline moment settings section
-		containerEl.createEl('h2', { text: 'Inline moments' });
+		new Setting(containerEl).setName('Inline entries').setHeading();
 
 		new Setting(containerEl)
 			.setName('Target section mode')
@@ -71,6 +72,7 @@ export class MomentsSettingTab extends PluginSettingTab {
 				.setDesc('The heading to insert moments under. Will be created if it does not exist.')
 				.addText((text) =>
 					text
+						// eslint-disable-next-line obsidianmd/ui/sentence-case
 						.setPlaceholder('## Notes')
 						.setValue(this.plugin.settings.targetSection)
 						.onChange(async (value) => {
@@ -125,7 +127,7 @@ export class MomentsSettingTab extends PluginSettingTab {
 			);
 
 		// Standalone moment settings section
-		containerEl.createEl('h2', { text: 'Standalone moments' });
+		new Setting(containerEl).setName('Standalone notes').setHeading();
 
 		new Setting(containerEl)
 			.setName('Filename template')
@@ -154,7 +156,7 @@ export class MomentsSettingTab extends PluginSettingTab {
 			);
 
 		// Timeline settings section
-		containerEl.createEl('h2', { text: 'Timeline' });
+		new Setting(containerEl).setName('Timeline').setHeading();
 
 		new Setting(containerEl)
 			.setName('Auto-filter on periodic notes')

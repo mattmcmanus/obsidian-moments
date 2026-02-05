@@ -17,6 +17,14 @@ export class TimelineView extends ItemView {
 		searchText: null,
 	};
 
+	// Pagination state
+	private loadedMonths: Set<string> = new Set();
+	private oldestLoadedMonth: string | null = null;
+	private isLoadingMore: boolean = false;
+	private hasMoreMonths: boolean = true;
+	private allMoments: Moment[] = [];
+	private allImplicitByDate: Map<string, ImplicitMoment[]> = new Map();
+
 	constructor(leaf: WorkspaceLeaf, plugin: MomentsPlugin) {
 		super(leaf);
 		this.plugin = plugin;
@@ -27,7 +35,7 @@ export class TimelineView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		return 'Moments Timeline';
+		return 'Moments timeline';
 	}
 
 	getIcon(): string {
@@ -62,54 +70,37 @@ export class TimelineView extends ItemView {
 
 		// Today button
 		const todayBtn = nav.createEl('button', {
-			cls: 'moments-nav-btn',
+			cls: 'clickable-icon nav-action-button',
 			text: 'Today',
+			attr: { 'aria-label': 'Go to today' },
 		});
 		todayBtn.addEventListener('click', () => this.goToToday());
 
 		// Previous day
 		const prevBtn = nav.createEl('button', {
-			cls: 'moments-nav-btn',
+			cls: 'clickable-icon nav-action-button',
 			attr: { 'aria-label': 'Previous day' },
 		});
-		prevBtn.innerHTML = '←';
-		prevBtn.addEventListener('click', () => this.navigateDay(-1));
+		prevBtn.textContent = '←';
+		prevBtn.addEventListener('click', () => {
+			this.navigateDay(-1);
+		});
 
 		// Next day
 		const nextBtn = nav.createEl('button', {
-			cls: 'moments-nav-btn',
+			cls: 'clickable-icon nav-action-button',
 			attr: { 'aria-label': 'Next day' },
 		});
-		nextBtn.innerHTML = '→';
-		nextBtn.addEventListener('click', () => this.navigateDay(1));
+		nextBtn.textContent = '→';
+		nextBtn.addEventListener('click', () => {
+			this.navigateDay(1);
+		});
 
 		// Filter indicator
 		const filterInfo = header.createEl('div', { cls: 'moments-filter-info' });
 		this.updateFilterInfo(filterInfo);
 
-		// Quick actions
-		const actions = header.createEl('div', { cls: 'moments-timeline-actions' });
-
-		// New moment button
-		const newBtn = actions.createEl('button', {
-			cls: 'moments-action-btn',
-			attr: { 'aria-label': 'Create new moment' },
-		});
-		newBtn.innerHTML = '+';
-		newBtn.addEventListener('click', () => {
-			(this.app as any).commands.executeCommandById('moments:create-standalone');
-		});
-
-		// Search button
-		const searchBtn = actions.createEl('button', {
-			cls: 'moments-action-btn',
-			attr: { 'aria-label': 'Search vault' },
-		});
-		searchBtn.innerHTML = '🔍';
-		searchBtn.addEventListener('click', () => {
-			(this.app as any).commands.executeCommandById('global-search:open');
-		});
-	}
+		}
 
 	private updateFilterInfo(el: HTMLElement): void {
 		el.empty();
@@ -131,7 +122,7 @@ export class TimelineView extends ItemView {
 			});
 			clearBtn.addEventListener('click', () => this.clearFilter());
 		} else {
-			el.setText('Showing all moments');
+			el.setText('Recent moments');
 		}
 	}
 
@@ -148,36 +139,207 @@ export class TimelineView extends ItemView {
 	async renderTimeline(): Promise<void> {
 		this.timelineContentEl.empty();
 
-		// Get moments from cache
-		const moments = this.plugin.getMomentsForDisplay(this.filter);
+		// Reset pagination state
+		this.loadedMonths.clear();
+		this.oldestLoadedMonth = null;
+		this.hasMoreMonths = true;
+		this.isLoadingMore = false;
 
-		if (moments.length === 0) {
-			this.renderEmptyState();
-			return;
-		}
+		// Get moments from cache
+		this.allMoments = this.plugin.getMomentsForDisplay(this.filter);
 
 		// Group moments by date
-		const groupedByDate = this.groupMomentsByDate(moments);
+		const groupedByDate = this.groupMomentsByDate(this.allMoments);
 
 		// Get implicit moments if enabled
-		let implicitByDate: Map<string, ImplicitMoment[]> = new Map();
+		this.allImplicitByDate = new Map();
 		if (this.plugin.settings.showImplicitMoments) {
-			implicitByDate = await this.plugin.getImplicitMomentsForDisplay(
+			this.allImplicitByDate = await this.plugin.getImplicitMomentsForDisplay(
 				this.filter,
 				groupedByDate
 			);
 		}
 
-		// Get all dates and sort (newest first)
-		const allDates = new Set([...groupedByDate.keys(), ...implicitByDate.keys()]);
-		const sortedDates = Array.from(allDates).sort((a, b) => b.localeCompare(a));
+		// Get all dates
+		const allDates = new Set([...groupedByDate.keys(), ...this.allImplicitByDate.keys()]);
 
-		// Render each day section
-		for (const date of sortedDates) {
+		if (allDates.size === 0) {
+			this.renderEmptyState();
+			return;
+		}
+
+		// Determine which month to start with
+		const startMonth = this.getStartMonth();
+
+		// Load initial month
+		await this.loadMonth(startMonth, groupedByDate);
+
+		// Add scroll listener for infinite loading
+		this.setupScrollListener();
+
+		// Add "load more" button as fallback
+		this.addLoadMoreButton();
+	}
+
+	private getStartMonth(): string {
+		// If filter is set, use filter start date's month
+		if (this.filter.startDate) {
+			return this.filter.startDate.substring(0, 7); // YYYY-MM
+		}
+
+		// Otherwise, use current month
+		return formatDate(new Date()).substring(0, 7);
+	}
+
+	private async loadMonth(
+		month: string,
+		groupedByDate?: Map<string, Moment[]>,
+		searchDepth: number = 0
+	): Promise<void> {
+		if (this.loadedMonths.has(month)) {
+			return;
+		}
+
+		this.loadedMonths.add(month);
+
+		// Group by date if not provided
+		if (!groupedByDate) {
+			groupedByDate = this.groupMomentsByDate(this.allMoments);
+		}
+
+		// Track oldest loaded month
+		if (!this.oldestLoadedMonth || month < this.oldestLoadedMonth) {
+			this.oldestLoadedMonth = month;
+		}
+
+		// Get all dates for this month
+		const monthDates = this.getDatesForMonth(month, groupedByDate);
+
+		if (monthDates.length === 0) {
+			// No dates in this month, try older months (up to 12 months back on initial load)
+			if (searchDepth < 12) {
+				const prevMonth = this.getPreviousMonth(month);
+				await this.loadMonth(prevMonth, groupedByDate, searchDepth + 1);
+			}
+			return;
+		}
+
+		// Render days in this month (sorted newest first)
+		monthDates.sort((a, b) => b.localeCompare(a));
+
+		for (const date of monthDates) {
 			const dayMoments = groupedByDate.get(date) || [];
-			const dayImplicit = implicitByDate.get(date) || [];
+			const dayImplicit = this.allImplicitByDate.get(date) || [];
 
 			await this.renderDaySection(date, dayMoments, dayImplicit);
+		}
+	}
+
+	private getPreviousMonth(month: string): string {
+		const parts = month.split('-').map(Number);
+		const year = parts[0] || 2000;
+		const monthNum = parts[1] || 1;
+		let prevYear = year;
+		let prevMonth = monthNum - 1;
+
+		if (prevMonth < 1) {
+			prevMonth = 12;
+			prevYear--;
+		}
+
+		return `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
+	}
+
+	private getDatesForMonth(
+		month: string,
+		groupedByDate: Map<string, Moment[]>
+	): string[] {
+		const allDates = new Set([...groupedByDate.keys(), ...this.allImplicitByDate.keys()]);
+		return Array.from(allDates).filter((date) => date.startsWith(month));
+	}
+
+	private async loadOlderMonth(groupedByDate?: Map<string, Moment[]>): Promise<void> {
+		if (this.isLoadingMore || !this.hasMoreMonths || !this.oldestLoadedMonth) {
+			return;
+		}
+
+		this.isLoadingMore = true;
+
+		// Calculate previous month
+		const prevMonthStr = this.getPreviousMonth(this.oldestLoadedMonth);
+
+		// Check if there are any dates older than our oldest loaded month
+		if (!groupedByDate) {
+			groupedByDate = this.groupMomentsByDate(this.allMoments);
+		}
+
+		const allDates = new Set([...groupedByDate.keys(), ...this.allImplicitByDate.keys()]);
+		const hasOlderDates = Array.from(allDates).some((date) => date < this.oldestLoadedMonth!);
+
+		if (!hasOlderDates) {
+			this.hasMoreMonths = false;
+			this.removeLoadMoreButton();
+			this.isLoadingMore = false;
+			return;
+		}
+
+		// Load the previous month (which may recursively load more if empty)
+		await this.loadMonth(prevMonthStr, groupedByDate, 0);
+
+		this.isLoadingMore = false;
+
+		// Update load more button visibility
+		this.updateLoadMoreButton();
+	}
+
+	private setupScrollListener(): void {
+		const scrollContainer = this.timelineContentEl;
+
+		scrollContainer.addEventListener('scroll', () => {
+			if (this.isLoadingMore || !this.hasMoreMonths) {
+				return;
+			}
+
+			const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+			const scrolledToBottom = scrollTop + clientHeight >= scrollHeight - 100;
+
+			if (scrolledToBottom) {
+				void this.loadOlderMonth();
+			}
+		});
+	}
+
+	private addLoadMoreButton(): void {
+		const existingBtn = this.timelineContentEl.querySelector('.moments-load-more');
+		if (existingBtn) {
+			existingBtn.remove();
+		}
+
+		if (!this.hasMoreMonths) {
+			return;
+		}
+
+		const loadMoreBtn = this.timelineContentEl.createEl('button', {
+			cls: 'moments-load-more',
+			text: 'Load more...',
+		});
+
+		loadMoreBtn.addEventListener('click', () => {
+			void this.loadOlderMonth();
+		});
+	}
+
+	private updateLoadMoreButton(): void {
+		const btn = this.timelineContentEl.querySelector('.moments-load-more');
+		if (btn && !this.hasMoreMonths) {
+			btn.remove();
+		}
+	}
+
+	private removeLoadMoreButton(): void {
+		const btn = this.timelineContentEl.querySelector('.moments-load-more');
+		if (btn) {
+			btn.remove();
 		}
 	}
 
@@ -192,7 +354,7 @@ export class TimelineView extends ItemView {
 		}
 
 		// Sort moments within each day by firstSeen (newest first)
-		for (const [date, dateMoments] of grouped) {
+		for (const [, dateMoments] of grouped) {
 			dateMoments.sort((a, b) => b.firstSeen - a.firstSeen);
 		}
 
@@ -215,7 +377,7 @@ export class TimelineView extends ItemView {
 
 		// Collapse/expand toggle
 		const toggle = header.createEl('span', { cls: 'moments-day-toggle' });
-		toggle.innerHTML = '▼';
+		toggle.textContent = '▼';
 
 		// Day content container
 		const content = section.createEl('div', { cls: 'moments-day-content' });
@@ -225,7 +387,7 @@ export class TimelineView extends ItemView {
 		header.addEventListener('click', () => {
 			collapsed = !collapsed;
 			content.toggleClass('collapsed', collapsed);
-			toggle.innerHTML = collapsed ? '▶' : '▼';
+			toggle.textContent = collapsed ? '▶' : '▼';
 		});
 
 		// Click to filter to this day
@@ -277,7 +439,7 @@ export class TimelineView extends ItemView {
 			// Click to open file
 			source.addEventListener('click', (e) => {
 				e.stopPropagation();
-				this.openMoment(moment);
+				void this.openMoment(moment);
 			});
 		}
 
@@ -293,7 +455,7 @@ export class TimelineView extends ItemView {
 					content,
 					cardContent,
 					moment.filePath,
-					this.plugin
+					this
 				);
 			} else {
 				cardContent.createEl('em', {
@@ -310,7 +472,9 @@ export class TimelineView extends ItemView {
 		}
 
 		// Click card to open moment
-		card.addEventListener('click', () => this.openMoment(moment));
+		card.addEventListener('click', () => {
+			void this.openMoment(moment);
+		});
 	}
 
 	private async getMomentContent(moment: Moment): Promise<string> {
@@ -350,7 +514,7 @@ export class TimelineView extends ItemView {
 			e.preventDefault();
 			const file = this.app.vault.getAbstractFileByPath(implicit.filePath);
 			if (file instanceof TFile) {
-				this.app.workspace.getLeaf().openFile(file);
+				void this.app.workspace.getLeaf().openFile(file);
 			}
 		});
 
@@ -375,8 +539,18 @@ export class TimelineView extends ItemView {
 			text: 'Create your first moment',
 		});
 		createBtn.addEventListener('click', () => {
-			(this.app as any).commands.executeCommandById('moments:create-standalone');
+			this.executeCommand('moments:create-standalone');
 		});
+	}
+
+	/**
+	 * Execute a command by ID.
+	 */
+	private executeCommand(commandId: string): void {
+		const app = this.app as typeof this.app & {
+			commands: { executeCommandById: (id: string) => void };
+		};
+		app.commands.executeCommandById(commandId);
 	}
 
 	private async openMoment(moment: Moment): Promise<void> {
@@ -390,15 +564,12 @@ export class TimelineView extends ItemView {
 		// For inline moments, scroll to the heading
 		if (moment.type === 'inline' && moment.headingLine !== undefined) {
 			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-			if (view) {
-				const editor = (view as any).editor;
-				if (editor) {
-					editor.setCursor({ line: moment.headingLine, ch: 0 });
-					editor.scrollIntoView(
-						{ from: { line: moment.headingLine, ch: 0 }, to: { line: moment.headingLine, ch: 0 } },
-						true
-					);
-				}
+			if (view?.editor) {
+				view.editor.setCursor({ line: moment.headingLine, ch: 0 });
+				view.editor.scrollIntoView(
+					{ from: { line: moment.headingLine, ch: 0 }, to: { line: moment.headingLine, ch: 0 } },
+					true
+				);
 			}
 		}
 	}
@@ -434,7 +605,7 @@ export class TimelineView extends ItemView {
 			this.updateFilterInfo(filterInfo as HTMLElement);
 		}
 
-		this.renderTimeline();
+		void this.renderTimeline();
 	}
 
 	clearFilter(): void {
@@ -442,6 +613,6 @@ export class TimelineView extends ItemView {
 	}
 
 	refresh(): void {
-		this.renderTimeline();
+		void this.renderTimeline();
 	}
 }

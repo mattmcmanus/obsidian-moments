@@ -26,19 +26,6 @@
 	gap: 4px;
 }
 
-.moments-nav-btn {
-	padding: 4px 12px;
-	border-radius: 4px;
-	background: var(--background-primary);
-	border: 1px solid var(--background-modifier-border);
-	cursor: pointer;
-	font-size: 13px;
-}
-
-.moments-nav-btn:hover {
-	background: var(--background-modifier-hover);
-}
-
 .moments-filter-info {
 	flex: 1;
 	display: flex;
@@ -49,40 +36,18 @@
 }
 
 .moments-clear-filter {
-	padding: 0 6px;
+	padding: 2px 6px;
 	background: transparent;
 	border: none;
 	color: var(--text-muted);
 	cursor: pointer;
 	font-size: 14px;
+	border-radius: var(--radius-s);
 }
 
 .moments-clear-filter:hover {
 	color: var(--text-normal);
-}
-
-.moments-timeline-actions {
-	display: flex;
-	gap: 4px;
-}
-
-.moments-action-btn {
-	width: 28px;
-	height: 28px;
-	padding: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	border-radius: 4px;
-	background: var(--interactive-accent);
-	color: var(--text-on-accent);
-	border: none;
-	cursor: pointer;
-	font-size: 16px;
-}
-
-.moments-action-btn:hover {
-	background: var(--interactive-accent-hover);
+	background: var(--background-modifier-hover);
 }
 
 /* Timeline Content */
@@ -149,8 +114,9 @@
 
 .moments-card-header {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: baseline;
-	gap: 8px;
+	gap: 4px 8px;
 	margin-bottom: 8px;
 }
 
@@ -216,6 +182,27 @@
 	color: var(--text-faint);
 }
 
+/* Load More Button */
+.moments-load-more {
+	display: block;
+	width: 100%;
+	padding: 12px;
+	margin-top: 16px;
+	background: var(--background-secondary);
+	border: 1px dashed var(--background-modifier-border);
+	border-radius: 6px;
+	color: var(--text-muted);
+	cursor: pointer;
+	font-size: 13px;
+	text-align: center;
+	transition: background 0.15s ease, color 0.15s ease;
+}
+
+.moments-load-more:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
 /* Empty State */
 .moments-empty-state {
 	display: flex;
@@ -249,11 +236,6 @@
 	.moments-filter-info {
 		width: 100%;
 		order: 3;
-	}
-
-	.moments-action-btn {
-		width: 36px;
-		height: 36px;
 	}
 
 	.moments-card {

@@ -1,7 +1,6 @@
 import {
 	parseHeadingForMoment,
 	extractTitle,
-	type ParsedMomentHeading,
 } from '../../src/core/heading-parser';
 
 describe('parseHeadingForMoment', () => {

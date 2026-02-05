@@ -1,7 +1,7 @@
 import type MomentsPlugin from '../main';
 import { addInlineMoment } from './add-inline';
 import { createStandaloneMoment } from './create-standalone';
-import { COMMANDS, HOTKEYS } from '../constants';
+import { COMMANDS } from '../constants';
 
 /**
  * Register all plugin commands.
@@ -11,9 +11,8 @@ export function registerCommands(plugin: MomentsPlugin): void {
 	plugin.addCommand({
 		id: COMMANDS.ADD_INLINE,
 		name: 'Insert moment in current file',
-		hotkeys: HOTKEYS.ADD_INLINE as any,
 		callback: () => {
-			addInlineMoment(plugin.app, plugin.settings);
+			void addInlineMoment(plugin.app, plugin.settings);
 		},
 	});
 
@@ -22,7 +21,7 @@ export function registerCommands(plugin: MomentsPlugin): void {
 		id: COMMANDS.CREATE_STANDALONE,
 		name: 'Create new moment note',
 		callback: () => {
-			createStandaloneMoment(plugin.app, plugin.settings);
+			void createStandaloneMoment(plugin.app, plugin.settings);
 		},
 	});
 

@@ -1,4 +1,4 @@
-import { App, Modal, Setting, TextComponent, Notice } from 'obsidian';
+import { App, Modal, Setting, Notice } from 'obsidian';
 import { getTodayString, isValidDateString } from '../core/date-parser';
 
 /**
@@ -14,7 +14,7 @@ export interface MomentModalResult {
  */
 export class MomentModal extends Modal {
 	private result: MomentModalResult | null = null;
-	private onSubmit: (result: MomentModalResult) => void;
+	private onSubmit: (result: MomentModalResult) => void | Promise<void>;
 	private dateFormat: string;
 	private titleText: string = '';
 	private dateText: string;
@@ -25,7 +25,7 @@ export class MomentModal extends Modal {
 		options: {
 			title: string;
 			dateFormat: string;
-			onSubmit: (result: MomentModalResult) => void;
+			onSubmit: (result: MomentModalResult) => void | Promise<void>;
 		}
 	) {
 		super(app);
@@ -41,14 +41,12 @@ export class MomentModal extends Modal {
 		contentEl.createEl('h2', { text: this.modalTitle });
 
 		// Title input
-		let titleInput: TextComponent;
 		new Setting(contentEl)
 			.setName('Title')
 			.setDesc('What is this moment about?')
 			.addText((text) => {
-				titleInput = text;
 				text
-					.setPlaceholder('Call with Lawyer')
+					.setPlaceholder('Call with lawyer')
 					.setValue(this.titleText)
 					.onChange((value) => {
 						this.titleText = value;
@@ -95,7 +93,7 @@ export class MomentModal extends Modal {
 		});
 	}
 
-	private submit() {
+	private submit(): void {
 		// Validate date
 		if (!isValidDateString(this.dateText, this.dateFormat)) {
 			new Notice(`Invalid date format. Expected: ${this.dateFormat}`);
@@ -108,7 +106,7 @@ export class MomentModal extends Modal {
 		};
 
 		this.close();
-		this.onSubmit(this.result);
+		void Promise.resolve(this.onSubmit(this.result));
 	}
 
 	onClose() {

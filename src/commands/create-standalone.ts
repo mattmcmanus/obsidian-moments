@@ -3,16 +3,22 @@ import type { MomentsSettings } from '../settings/settings';
 import { MomentModal } from '../ui/moment-modal';
 import { buildFilename, renderTemplate } from '../core/template-engine';
 import type { TemplateVariables } from '../core/template-engine';
+import {
+	hasTemplatesAvailable,
+	TemplateSuggesterModal,
+	applyTemplate,
+} from '../ui/template-suggester';
 
 /**
  * Get the folder path for new notes based on Obsidian's settings.
  */
 function getNewNoteFolderPath(app: App): string {
 	// Access Obsidian's internal config for new file location
-	// @ts-expect-error - accessing internal API
-	const newFileLocation = app.vault.getConfig('newFileLocation');
-	// @ts-expect-error - accessing internal API
-	const newFileFolderPath = app.vault.getConfig('newFileFolderPath');
+	const vault = app.vault as App['vault'] & {
+		getConfig(key: string): unknown;
+	};
+	const newFileLocation = vault.getConfig('newFileLocation') as string | undefined;
+	const newFileFolderPath = vault.getConfig('newFileFolderPath') as string | undefined;
 
 	if (newFileLocation === 'folder' && newFileFolderPath) {
 		return newFileFolderPath;
@@ -66,7 +72,7 @@ export async function createStandaloneMoment(
 					return;
 				}
 
-				// Build initial content
+				// Build initial content from plugin settings (if no template will be applied)
 				let content = '';
 				if (settings.noteTemplate) {
 					content = renderTemplate(settings.noteTemplate, templateVars);
@@ -77,6 +83,22 @@ export async function createStandaloneMoment(
 
 				// Open the new file
 				await app.workspace.getLeaf().openFile(file);
+
+				// If templates are available, offer to apply one
+				if (hasTemplatesAvailable(app)) {
+					new TemplateSuggesterModal(app, (templateFile) => {
+						if (templateFile) {
+							applyTemplate(app, file, templateFile)
+								.then(() => {
+									new Notice('Template applied');
+								})
+								.catch((error: unknown) => {
+									console.error('Failed to apply template:', error);
+									new Notice('Failed to apply template');
+								});
+						}
+					}).open();
+				}
 
 				new Notice('Moment note created');
 			} catch (error) {

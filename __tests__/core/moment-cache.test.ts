@@ -7,7 +7,7 @@ import {
 	getMomentsInDateRange,
 	hasExplicitMoments,
 } from '../../src/core/moment-cache';
-import type { Moment, MomentCache } from '../../src/types';
+import type { Moment } from '../../src/types';
 
 function createTestMoment(overrides: Partial<Moment> = {}): Moment {
 	return {

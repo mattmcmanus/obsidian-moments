@@ -13,7 +13,11 @@ export default tseslint.config(
 				projectService: {
 					allowDefaultProject: [
 						'eslint.config.js',
-						'manifest.json'
+						'eslint.config.mts',
+						'manifest.json',
+						'jest.config.js',
+						'esbuild.config.mjs',
+						'version-bump.mjs',
 					]
 				},
 				tsconfigRootDir: import.meta.dirname,
@@ -25,10 +29,29 @@ export default tseslint.config(
 	globalIgnores([
 		"node_modules",
 		"dist",
-		"esbuild.config.mjs",
-		"eslint.config.js",
-		"version-bump.mjs",
-		"versions.json",
+		"coverage",
 		"main.js",
+		"version-bump.mjs",
 	]),
+	// Relaxed rules for test files
+	{
+		files: ["__tests__/**/*.ts"],
+		languageOptions: {
+			globals: {
+				describe: "readonly",
+				it: "readonly",
+				expect: "readonly",
+				beforeEach: "readonly",
+				afterEach: "readonly",
+				beforeAll: "readonly",
+				afterAll: "readonly",
+				jest: "readonly",
+			},
+		},
+		rules: {
+			"@typescript-eslint/no-unsafe-assignment": "off",
+			"@typescript-eslint/no-unsafe-call": "off",
+			"@typescript-eslint/no-unsafe-member-access": "off",
+		},
+	},
 );

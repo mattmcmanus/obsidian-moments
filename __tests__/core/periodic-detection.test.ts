@@ -1,7 +1,6 @@
 import {
 	detectPeriodicNoteType,
 	getDateRangeForPeriodicNote,
-	type PeriodicNoteType,
 } from '../../src/core/periodic-detection';
 
 describe('detectPeriodicNoteType', () => {

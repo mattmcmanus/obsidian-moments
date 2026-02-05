@@ -41,7 +41,7 @@ export function renderTemplate(
 	variables: Record<string, string | null | undefined>
 ): string {
 	// Match {{variableName}} where variableName is alphanumeric/underscore
-	return template.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
+	return template.replace(/\{\{(\w+)\}\}/g, (match, varName: string) => {
 		const value = variables[varName];
 		if (value === undefined || value === null) {
 			return match; // Leave as-is if not found

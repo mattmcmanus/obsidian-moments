@@ -1,4 +1,4 @@
-import { formatDate, buildDatePattern } from './date-parser';
+import { formatDate } from './date-parser';
 
 /**
  * Types of periodic notes
@@ -51,8 +51,7 @@ export function detectPeriodicNoteType(
 	// Build pattern from daily format
 	const dailyPattern = buildDatePatternForDetection(dailyFormat);
 
-	// Check if in the daily folder or matches daily format
-	const isInDailyFolder = dailyFolder && filePath.startsWith(dailyFolder);
+	// Check if matches daily format
 	const matchesDaily = dailyPattern.test(filename);
 
 	if (matchesDaily) {

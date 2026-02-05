@@ -1,4 +1,4 @@
-import { Plugin, TFile, WorkspaceLeaf } from 'obsidian';
+import { Plugin, TFile, WorkspaceLeaf, Menu, MenuItem } from 'obsidian';
 import { MomentsSettings, DEFAULT_SETTINGS } from './settings/settings';
 import { MomentsSettingTab } from './settings/settings-tab';
 import { registerCommands } from './commands/index';
@@ -51,50 +51,58 @@ export default class MomentsPlugin extends Plugin {
 		this.addCommand({
 			id: COMMANDS.OPEN_TIMELINE,
 			name: 'Open timeline',
-			callback: () => this.openTimeline('sidebar'),
+			callback: () => {
+				void this.openTimeline('sidebar');
+			},
 		});
 
 		this.addCommand({
 			id: COMMANDS.OPEN_TIMELINE_TAB,
 			name: 'Open timeline in new tab',
-			callback: () => this.openTimeline('tab'),
+			callback: () => {
+				void this.openTimeline('tab');
+			},
 		});
 
 		this.addCommand({
 			id: COMMANDS.GO_TO_TODAY,
 			name: 'Go to today',
-			callback: () => this.goToToday(),
+			callback: () => {
+				this.goToToday();
+			},
 		});
 
 		// Add ribbon icon with menu
 		this.addRibbonIcon(RIBBON_ICON, 'Moments', (evt: MouseEvent) => {
-			const menu = new (require('obsidian').Menu)();
+			const menu = new Menu();
 
-			menu.addItem((item: any) =>
+			menu.addItem((item: MenuItem) =>
 				item
 					.setTitle('Insert moment in current file')
 					.setIcon('plus')
 					.onClick(() => {
-						(this.app as any).commands.executeCommandById('moments:add-inline');
+						this.executeCommand('moments:add-inline');
 					})
 			);
 
-			menu.addItem((item: any) =>
+			menu.addItem((item: MenuItem) =>
 				item
 					.setTitle('Create new moment note')
 					.setIcon('file-plus')
 					.onClick(() => {
-						(this.app as any).commands.executeCommandById('moments:create-standalone');
+						this.executeCommand('moments:create-standalone');
 					})
 			);
 
 			menu.addSeparator();
 
-			menu.addItem((item: any) =>
+			menu.addItem((item: MenuItem) =>
 				item
 					.setTitle('Open timeline')
 					.setIcon('calendar-clock')
-					.onClick(() => this.openTimeline('sidebar'))
+					.onClick(() => {
+						void this.openTimeline('sidebar');
+					})
 			);
 
 			menu.showAtMouseEvent(evt);
@@ -107,7 +115,7 @@ export default class MomentsPlugin extends Plugin {
 		this.registerEvent(
 			this.app.vault.on('create', (file) => {
 				if (file instanceof TFile && file.extension === 'md') {
-					this.handleFileChange(file);
+					void this.handleFileChange(file);
 				}
 			})
 		);
@@ -115,7 +123,7 @@ export default class MomentsPlugin extends Plugin {
 		this.registerEvent(
 			this.app.vault.on('modify', (file) => {
 				if (file instanceof TFile && file.extension === 'md') {
-					this.handleFileChange(file);
+					void this.handleFileChange(file);
 				}
 			})
 		);
@@ -132,7 +140,7 @@ export default class MomentsPlugin extends Plugin {
 			this.app.vault.on('rename', (file, oldPath) => {
 				if (file instanceof TFile && file.extension === 'md') {
 					removeMomentsForFile(this.momentCache, oldPath);
-					this.handleFileChange(file);
+					void this.handleFileChange(file);
 				}
 			})
 		);
@@ -151,22 +159,33 @@ export default class MomentsPlugin extends Plugin {
 		);
 
 		// Initial scan on layout ready
-		this.app.workspace.onLayoutReady(async () => {
-			await this.scanVault();
-
-			// Open timeline on startup if enabled
-			if (this.settings.openOnStartup) {
-				this.openTimeline(this.settings.defaultViewMode);
-			}
+		this.app.workspace.onLayoutReady(() => {
+			void this.scanVault().then(() => {
+				// Open timeline on startup if enabled
+				if (this.settings.openOnStartup) {
+					void this.openTimeline(this.settings.defaultViewMode);
+				}
+			});
 		});
+	}
+
+	/**
+	 * Execute a command by ID.
+	 */
+	private executeCommand(commandId: string): void {
+		const app = this.app as typeof this.app & {
+			commands: { executeCommandById: (id: string) => void };
+		};
+		app.commands.executeCommandById(commandId);
 	}
 
 	onunload() {
 		// View is automatically cleaned up
 	}
 
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+	async loadSettings(): Promise<void> {
+		const loaded = (await this.loadData()) as Partial<MomentsSettings> | null;
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded ?? {});
 	}
 
 	async saveSettings() {
@@ -327,7 +346,7 @@ export default class MomentsPlugin extends Plugin {
 		}
 
 		// Sort within each day by timestamp (newest first)
-		for (const [date, implicit] of result) {
+		for (const [, implicit] of result) {
 			implicit.sort((a, b) => b.timestamp - a.timestamp);
 		}
 
@@ -344,7 +363,7 @@ export default class MomentsPlugin extends Plugin {
 		const existingLeaves = workspace.getLeavesOfType(TIMELINE_VIEW_TYPE);
 		if (existingLeaves.length > 0) {
 			// Focus the existing view
-			workspace.revealLeaf(existingLeaves[0]!);
+			void workspace.revealLeaf(existingLeaves[0]!);
 			return;
 		}
 
@@ -362,7 +381,7 @@ export default class MomentsPlugin extends Plugin {
 			active: true,
 		});
 
-		workspace.revealLeaf(leaf);
+		void workspace.revealLeaf(leaf);
 	}
 
 	/**
@@ -375,7 +394,7 @@ export default class MomentsPlugin extends Plugin {
 			view.goToToday();
 		} else {
 			// Open timeline first, then go to today
-			this.openTimeline().then(() => {
+			void this.openTimeline().then(() => {
 				const newLeaves = this.app.workspace.getLeavesOfType(TIMELINE_VIEW_TYPE);
 				if (newLeaves.length > 0) {
 					const view = newLeaves[0]!.view as TimelineView;
@@ -416,8 +435,28 @@ export default class MomentsPlugin extends Plugin {
 	 * Attempts to detect from Daily Notes or Periodic Notes plugins.
 	 */
 	private getPeriodicNotesFolder(type: 'daily' | 'weekly' | 'monthly'): string {
+		// Define types for internal plugin APIs
+		interface PeriodicNotesSettings {
+			daily?: { folder?: string };
+			weekly?: { folder?: string };
+			monthly?: { folder?: string };
+		}
+
+		interface PluginsApi {
+			plugins?: {
+				getPlugin?: (id: string) => { settings?: PeriodicNotesSettings } | undefined;
+			};
+			internalPlugins?: {
+				getPluginById?: (id: string) => {
+					instance?: { options?: { folder?: string } };
+				} | undefined;
+			};
+		}
+
+		const app = this.app as typeof this.app & PluginsApi;
+
 		// Try to get from Periodic Notes plugin
-		const periodicNotes = (this.app as any).plugins?.getPlugin?.('periodic-notes');
+		const periodicNotes = app.plugins?.getPlugin?.('periodic-notes');
 		if (periodicNotes?.settings) {
 			const settings = periodicNotes.settings;
 			switch (type) {
@@ -431,7 +470,7 @@ export default class MomentsPlugin extends Plugin {
 		}
 
 		// Try to get from core Daily Notes plugin
-		const dailyNotes = (this.app as any).internalPlugins?.getPluginById?.('daily-notes');
+		const dailyNotes = app.internalPlugins?.getPluginById?.('daily-notes');
 		if (dailyNotes?.instance?.options && type === 'daily') {
 			return dailyNotes.instance.options.folder || '';
 		}

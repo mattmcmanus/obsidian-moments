@@ -105,9 +105,8 @@ export async function addInlineMoment(
 	if (!file) {
 		// No active file - prompt user to select one
 		return new Promise((resolve) => {
-			new FileSuggesterModal(app, async (selectedFile) => {
-				await addMomentToFile(app, settings, selectedFile);
-				resolve();
+			new FileSuggesterModal(app, (selectedFile) => {
+				void addMomentToFile(app, settings, selectedFile).then(resolve);
 			}).open();
 		});
 	}
@@ -174,14 +173,29 @@ async function addMomentToFile(
 				const leaf = app.workspace.getLeaf();
 				await leaf.openFile(file);
 
-				// Position cursor after the new heading
-				const view = app.workspace.getActiveViewOfType(MarkdownView);
-				if (view) {
-					const lines = content.split('\n');
-					const headingLine = lines.findIndex((line) => line === heading);
-					if (headingLine !== -1) {
-						view.editor.setCursor({ line: headingLine + 1, ch: 0 });
-					}
+				// Find the line number of the new heading
+				const lines = content.split('\n');
+				const headingLine = lines.findIndex((line) => line === heading);
+
+				// Position cursor after the new heading with a small delay
+				// to ensure the editor has updated
+				if (headingLine !== -1) {
+					setTimeout(() => {
+						const view = app.workspace.getActiveViewOfType(MarkdownView);
+						if (view?.editor) {
+							const cursorLine = headingLine + 1;
+							view.editor.setCursor({ line: cursorLine, ch: 0 });
+							view.editor.scrollIntoView(
+								{
+									from: { line: cursorLine, ch: 0 },
+									to: { line: cursorLine, ch: 0 },
+								},
+								true
+							);
+							// Focus the editor
+							view.editor.focus();
+						}
+					}, 50);
 				}
 
 				new Notice('Moment created');
