@@ -513,9 +513,15 @@ When configured as homepage:
 | Date in heading | Expressive - wiki-linked date can be anywhere in heading. Title = heading text minus the date. |
 | No title in heading | Valid - embed shows content without title header. |
 | Content extraction | Standard - extract until next heading of same or higher level. |
-| Default hotkey | `Cmd+Alt+N` for inline moment creation. |
+| Default hotkey | None — Obsidian's `obsidianmd/commands/no-default-hotkeys` lint rule forbids default hotkeys. Users set their own. |
 | Error handling | Use Obsidian's `Notice` API (standard growl-style notifications). |
 | Testing | Jest for unit/integration tests. Pure core logic separated from Obsidian API layer. |
+| Timeline pagination | Month-based. Load current month first, search backwards up to 12 months for content, scroll-based lazy loading. |
+| File change handling | Debounced batch processing (500ms for file changes, 300ms for timeline refresh). Prevents UI flashing during typing. |
+| Template integration | Detect templates from core Templates plugin and Templater community plugin. Show fuzzy picker after standalone creation. |
+| Debug mode | Conditional `console.debug` logging behind a setting toggle. Never use `console.log` (Obsidian lint rules). |
+| Button styling | Use `clickable-icon nav-action-button` classes for Obsidian-native theming. Never custom button styles. |
+| Cursor after inline | 50ms setTimeout delay for editor update, then `scrollIntoView()` + `editor.focus()` for immediate typing. |
 
 ---
 
@@ -811,3 +817,158 @@ jobs:
 - Full functionality on mobile
 - Respects existing Daily Notes / Periodic Notes configuration
 - Homepage mode provides a useful daily dashboard experience
+
+---
+
+## Learnings & Patterns
+
+### Obsidian Plugin Linting (eslint-plugin-obsidianmd)
+
+The Obsidian ESLint plugin enforces strict rules. Key patterns learned:
+
+| Rule | Fix |
+|------|-----|
+| `obsidianmd/settings-tab/no-manual-html-headings` | Use `new Setting(containerEl).setName('Section').setHeading()` instead of `containerEl.createEl('h2', ...)` |
+| `obsidianmd/ui/sentence-case` | All UI text must be sentence case. For technical terms (e.g., "YYYY-MM-DD", "## Notes"), use `// eslint-disable-next-line` with explanation |
+| `obsidianmd/commands/no-default-hotkeys` | Never assign default hotkeys to commands. Users configure their own |
+| `obsidianmd/no-plugin-as-component` | When calling `MarkdownRenderer.render()` from a view, pass `this` (the view) as the component, not `this.plugin` |
+| `@microsoft/sdl/no-inner-html` | Use `textContent` or DOM methods instead of `innerHTML`, even for simple content like arrow characters |
+| `no-console` | Use `console.debug` (not `console.log`). The debug utility wraps this with conditional checks |
+
+### TypeScript Patterns for Obsidian
+
+**Accessing internal plugin APIs** (e.g., Daily Notes, Periodic Notes, Templates, Templater):
+```typescript
+// Define typed interfaces to avoid `any`
+interface PeriodicNotesSettings {
+  daily?: { folder?: string };
+  weekly?: { folder?: string };
+}
+interface PluginsApi {
+  plugins?: {
+    getPlugin?: (id: string) => { settings?: PeriodicNotesSettings } | undefined;
+  };
+}
+const app = this.app as typeof this.app & PluginsApi;
+```
+
+**Floating promises in event handlers** — use the `void` operator:
+```typescript
+this.registerEvent(
+  this.app.vault.on('create', (file) => {
+    void this.handleCreate(file);  // ← void operator satisfies no-floating-promises
+  })
+);
+```
+
+**Async callbacks in Obsidian UI** (e.g., `Menu.onClick`, `Modal.onSubmit`):
+```typescript
+// DON'T: async callback (violates no-misused-promises)
+item.onClick(async () => { await doThing(); });
+
+// DO: sync callback with .then()
+item.onClick(() => {
+  void doThing();
+});
+```
+
+**Accessing editor from MarkdownView**:
+```typescript
+const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+view?.editor;  // Properly typed, no `any` cast needed
+```
+
+**Accessing vault config** (e.g., "Default location for new notes"):
+```typescript
+const vault = this.app.vault as Vault & { getConfig: (key: string) => unknown };
+const folder = vault.getConfig('newFileFolderPath') as string | undefined;
+```
+
+### Performance Patterns
+
+**Debounced file change handling**: Obsidian fires `vault.on('modify')` on every save (including auto-save during typing). Without debouncing, this causes the timeline to re-render constantly, creating visual flashing.
+
+Solution:
+1. Queue file paths into a `Set<string>` (deduplicates)
+2. Debounce processing (500ms, leading edge) to batch multiple changes
+3. Debounce timeline refresh separately (300ms) so batch processing can complete
+4. Skip timeline refresh if no timeline views are open
+
+**Month-based pagination**: Loading all moments at once is expensive for large vaults. Instead:
+1. Start with the current month
+2. If the current month is empty, search backwards up to 12 months
+3. On scroll-to-bottom or "Load more" button, load the next older month
+4. Track loaded months in a `Set<string>` to avoid duplicates
+
+### Template Integration
+
+Two template sources are supported:
+1. **Core Templates plugin** (`templates`): Folder configured in plugin settings, apply by copying content
+2. **Templater plugin** (`templater-obsidian`): Has its own API for template application with dynamic content
+
+Detection order: Check Templater first (more powerful), fall back to core Templates. Show a `FuzzySuggestModal` with all `.md` files from the templates folder, plus a "None" option.
+
+### File Timestamps Caveat
+
+Obsidian uses filesystem `ctime`/`mtime` for implicit moments. When a vault is cloned to a new machine (e.g., via git), all files get the clone timestamp as their creation time. This is a known limitation — Obsidian doesn't maintain its own creation-time metadata. A potential future enhancement would be to track "first seen" timestamps in plugin persistent data.
+
+### Actual File Structure
+
+The implemented structure differs slightly from the original plan:
+
+```
+src/
+├── main.ts                        # Plugin entry, lifecycle, debounced handlers, cache management
+├── types.ts                       # TypeScript interfaces
+├── constants.ts                   # Defaults, regex patterns, view type IDs
+│
+├── core/                          # Pure functions (testable, no Obsidian imports)
+│   ├── date-parser.ts             # Date parsing, formatting, validation
+│   ├── heading-parser.ts          # Extract moment info from heading text
+│   ├── content-extractor.ts       # Extract content between headings
+│   ├── template-engine.ts         # Variable substitution for templates
+│   ├── moment-cache.ts            # Cache data structure and operations
+│   ├── moment-scanner.ts          # Scan file content for moments
+│   └── periodic-detection.ts      # Detect periodic note types and date ranges
+│
+├── settings/
+│   ├── settings.ts                # Settings interface and defaults
+│   └── settings-tab.ts            # Settings UI tab
+│
+├── commands/
+│   ├── index.ts                   # Register all commands
+│   ├── add-inline.ts              # Insert moment in current file
+│   └── create-standalone.ts       # Create new moment note (with template integration)
+│
+├── views/
+│   └── timeline-view.ts           # Main timeline view with month pagination
+│
+├── ui/
+│   ├── moment-modal.ts            # Modal for creating moments
+│   └── template-suggester.ts      # Template picker (core Templates + Templater)
+│
+└── utils/
+    └── debug.ts                   # Conditional debug logging utility
+```
+
+### CI Pipeline
+
+GitHub Actions runs on push and PRs to master/main:
+1. `npm run lint` — ESLint with typescript-eslint + eslint-plugin-obsidianmd
+2. `npm test` — Jest with ts-jest (144 tests, 93%+ coverage)
+3. `npm run build` — TypeScript compilation + esbuild bundle
+
+### ESLint Configuration Notes
+
+- Test files need `globals: { describe, it, expect, jest, beforeEach, afterEach }` and relaxed rules
+- `coverage/` directory must be in `globalIgnores`
+- `tsconfig.json` must include `"__tests__/**/*.ts"` for the type-aware lint rules to work
+- Use `allowDefaultProject` in `parserOptions` for config files that aren't in tsconfig
+
+### Future Considerations
+
+- **"First seen" tracking**: Store timestamps in plugin data to survive filesystem ctime changes
+- **Calendar widget**: Replace text date input with visual calendar picker
+- **Virtual scrolling**: For vaults with very large numbers of moments per month
+- **Search/filter by keyword**: Search across moment titles and content
+- **Tag-based filtering**: Filter timeline by tags found in moment content
