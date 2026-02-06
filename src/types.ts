@@ -73,6 +73,8 @@ export interface TimelineFilter {
 	endDate: string | null;
 	/** Text search filter */
 	searchText: string | null;
+	/** Filter to moments related to this file path */
+	relatedToFile: string | null;
 }
 
 /**

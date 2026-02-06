@@ -23,6 +23,7 @@ import {
 	detectPeriodicNoteType,
 	getDateRangeForPeriodicNote,
 } from './core/periodic-detection';
+import { findRelatedMoments, isFileRelatedByLinks } from './core/related-detection';
 import { setDebugMode, debug, debugTimed, debugCacheStats } from './utils/debug';
 
 /**
@@ -86,14 +87,6 @@ export default class MomentsPlugin extends Plugin {
 			name: 'Open timeline in new tab',
 			callback: () => {
 				void this.openTimeline('tab');
-			},
-		});
-
-		this.addCommand({
-			id: COMMANDS.GO_TO_TODAY,
-			name: 'Go to today',
-			callback: () => {
-				this.goToToday();
 			},
 		});
 
@@ -173,15 +166,11 @@ export default class MomentsPlugin extends Plugin {
 			})
 		);
 
-		// Auto-filter timeline when opening periodic notes
+		// Auto-filter timeline when opening notes
 		this.registerEvent(
 			this.app.workspace.on('file-open', (file) => {
-				if (
-					file instanceof TFile &&
-					file.extension === 'md' &&
-					this.settings.autoFilterOnPeriodicNote
-				) {
-					this.handlePeriodicNoteOpen(file);
+				if (file instanceof TFile && file.extension === 'md') {
+					this.handleFileOpen(file);
 				}
 			})
 		);
@@ -369,28 +358,39 @@ export default class MomentsPlugin extends Plugin {
 	getMomentsForDisplay(filter: TimelineFilter): Moment[] {
 		debug('getMomentsForDisplay', { filter });
 
+		let moments: Moment[];
+
 		if (filter.startDate && filter.endDate) {
-			const moments = getMomentsInDateRange(
+			moments = getMomentsInDateRange(
 				this.momentCache,
 				filter.startDate,
 				filter.endDate
 			);
 			debug('Filtered moments retrieved', { count: moments.length });
-			return moments;
+		} else {
+			// Return all moments
+			const allDates = getAllDatesWithMoments(this.momentCache);
+			moments = [];
+
+			for (const date of allDates) {
+				const dateMoments = this.momentCache.byDate.get(date);
+				if (dateMoments) {
+					moments.push(...dateMoments);
+				}
+			}
+
+			debug('All moments retrieved', { count: moments.length });
 		}
 
-		// Return all moments
-		const allDates = getAllDatesWithMoments(this.momentCache);
-		const moments: Moment[] = [];
-
-		for (const date of allDates) {
-			const dateMoments = this.momentCache.byDate.get(date);
-			if (dateMoments) {
-				moments.push(...dateMoments);
+		// Apply related file filter
+		if (filter.relatedToFile) {
+			const targetFile = this.app.vault.getAbstractFileByPath(filter.relatedToFile);
+			if (targetFile instanceof TFile) {
+				moments = findRelatedMoments(this.app, moments, targetFile);
+				debug('Related moments filtered', { count: moments.length });
 			}
 		}
 
-		debug('All moments retrieved', { count: moments.length });
 		return moments;
 	}
 
@@ -408,6 +408,12 @@ export default class MomentsPlugin extends Plugin {
 			// Skip files with explicit moments
 			if (hasExplicitMoments(this.momentCache, file.path)) {
 				continue;
+			}
+
+			// When filtering by related file, only include files linked to/from the target
+			if (filter.relatedToFile) {
+				if (file.path === filter.relatedToFile) continue;
+				if (!isFileRelatedByLinks(this.app, file.path, filter.relatedToFile)) continue;
 			}
 
 			const createdDate = formatDate(new Date(file.stat.ctime));
@@ -488,29 +494,26 @@ export default class MomentsPlugin extends Plugin {
 	}
 
 	/**
-	 * Jump timeline to today.
+	 * Handle a file being opened - dispatch to periodic or related filter.
 	 */
-	goToToday(): void {
-		const leaves = this.app.workspace.getLeavesOfType(TIMELINE_VIEW_TYPE);
-		if (leaves.length > 0) {
-			const view = leaves[0]!.view as TimelineView;
-			view.goToToday();
-		} else {
-			// Open timeline first, then go to today
-			void this.openTimeline().then(() => {
-				const newLeaves = this.app.workspace.getLeavesOfType(TIMELINE_VIEW_TYPE);
-				if (newLeaves.length > 0) {
-					const view = newLeaves[0]!.view as TimelineView;
-					view.goToToday();
-				}
-			});
+	private handleFileOpen(file: TFile): void {
+		// Periodic note filter takes priority
+		if (this.settings.autoFilterOnPeriodicNote) {
+			const periodicHandled = this.handlePeriodicNoteOpen(file);
+			if (periodicHandled) return;
+		}
+
+		// Try related moments filter
+		if (this.settings.autoFilterRelatedMoments) {
+			this.handleRelatedMomentsOpen(file);
 		}
 	}
 
 	/**
 	 * Handle opening a periodic note - auto-filter timeline if enabled.
+	 * Returns true if a periodic note was detected and handled.
 	 */
-	private handlePeriodicNoteOpen(file: TFile): void {
+	private handlePeriodicNoteOpen(file: TFile): boolean {
 		// Detect if this is a periodic note
 		const periodicInfo = detectPeriodicNoteType(
 			file.path,
@@ -519,7 +522,7 @@ export default class MomentsPlugin extends Plugin {
 		);
 
 		if (!periodicInfo) {
-			return;
+			return false;
 		}
 
 		// Get date range for this periodic note
@@ -530,6 +533,28 @@ export default class MomentsPlugin extends Plugin {
 		for (const leaf of leaves) {
 			const view = leaf.view as TimelineView;
 			view.setDateFilter(range.startDate, range.endDate);
+		}
+
+		return true;
+	}
+
+	/**
+	 * Handle opening a non-periodic note - auto-filter to related moments.
+	 */
+	private handleRelatedMomentsOpen(file: TFile): void {
+		// Skip standalone moments
+		if (isStandaloneMoment(file.name)) {
+			return;
+		}
+
+		debug('Setting related filter', { file: file.path });
+
+		// Always apply the related filter — if no moments match,
+		// the timeline will show an empty state for this note
+		const leaves = this.app.workspace.getLeavesOfType(TIMELINE_VIEW_TYPE);
+		for (const leaf of leaves) {
+			const view = leaf.view as TimelineView;
+			view.setRelatedFilter(file.path);
 		}
 	}
 

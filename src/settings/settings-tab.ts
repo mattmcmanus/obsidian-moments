@@ -171,6 +171,18 @@ export class MomentsSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
+			.setName('Auto-filter on related notes')
+			.setDesc('Automatically filter the timeline to show moments that reference the current note')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.autoFilterRelatedMoments)
+					.onChange(async (value) => {
+						this.plugin.settings.autoFilterRelatedMoments = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
 			.setName('Show implicit moments')
 			.setDesc('Show files created or modified on each day as secondary entries')
 			.addToggle((toggle) =>
