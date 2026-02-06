@@ -43,6 +43,8 @@ export interface MomentsSettings {
 	// Timeline settings
 	/** Auto-filter timeline when viewing periodic notes */
 	autoFilterOnPeriodicNote: boolean;
+	/** Auto-filter timeline to show related moments when viewing a note */
+	autoFilterRelatedMoments: boolean;
 	/** Show implicit moments (created/modified files) */
 	showImplicitMoments: boolean;
 	/** Open timeline on startup */
@@ -76,6 +78,7 @@ export const DEFAULT_SETTINGS: MomentsSettings = {
 
 	// Timeline settings
 	autoFilterOnPeriodicNote: true,
+	autoFilterRelatedMoments: true,
 	showImplicitMoments: true,
 	openOnStartup: false,
 	defaultViewMode: 'sidebar',

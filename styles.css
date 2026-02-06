@@ -186,21 +186,7 @@
 .moments-load-more {
 	display: block;
 	width: 100%;
-	padding: 12px;
 	margin-top: 16px;
-	background: var(--background-secondary);
-	border: 1px dashed var(--background-modifier-border);
-	border-radius: 6px;
-	color: var(--text-muted);
-	cursor: pointer;
-	font-size: 13px;
-	text-align: center;
-	transition: background 0.15s ease, color 0.15s ease;
-}
-
-.moments-load-more:hover {
-	background: var(--background-modifier-hover);
-	color: var(--text-normal);
 }
 
 /* Empty State */

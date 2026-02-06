@@ -16,6 +16,7 @@ export class TimelineView extends ItemView {
 		startDate: null,
 		endDate: null,
 		searchText: null,
+		relatedToFile: null,
 	};
 
 	// Pagination state
@@ -106,16 +107,29 @@ export class TimelineView extends ItemView {
 	private updateFilterInfo(el: HTMLElement): void {
 		el.empty();
 
-		if (this.filter.startDate && this.filter.endDate) {
+		const hasDateFilter = this.filter.startDate && this.filter.endDate;
+		const hasRelatedFilter = this.filter.relatedToFile;
+
+		if (hasRelatedFilter) {
+			const file = this.app.vault.getAbstractFileByPath(this.filter.relatedToFile!);
+			const basename = file instanceof TFile ? file.basename : this.filter.relatedToFile!.replace(/\.md$/, '');
+			el.setText(`Related to ${basename}`);
+
+			const clearBtn = el.createEl('button', {
+				cls: 'moments-clear-filter',
+				text: '×',
+				attr: { 'aria-label': 'Clear filter' },
+			});
+			clearBtn.addEventListener('click', () => this.clearFilter());
+		} else if (hasDateFilter) {
 			if (this.filter.startDate === this.filter.endDate) {
-				el.setText(`Showing ${this.formatDisplayDate(this.filter.startDate)}`);
+				el.setText(`Showing ${this.formatDisplayDate(this.filter.startDate!)}`);
 			} else {
 				el.setText(
-					`Showing ${this.formatDisplayDate(this.filter.startDate)} to ${this.formatDisplayDate(this.filter.endDate)}`
+					`Showing ${this.formatDisplayDate(this.filter.startDate!)} to ${this.formatDisplayDate(this.filter.endDate!)}`
 				);
 			}
 
-			// Add clear filter button
 			const clearBtn = el.createEl('button', {
 				cls: 'moments-clear-filter',
 				text: '×',
@@ -138,6 +152,8 @@ export class TimelineView extends ItemView {
 	}
 
 	async renderTimeline(): Promise<void> {
+		if (!this.timelineContentEl) return;
+
 		const done = debugTimed('Timeline render');
 		debug('Rendering timeline', { filter: this.filter });
 
@@ -612,6 +628,22 @@ export class TimelineView extends ItemView {
 		debug('Setting date filter', { startDate, endDate });
 		this.filter.startDate = startDate;
 		this.filter.endDate = endDate;
+		this.filter.relatedToFile = null;
+
+		// Update filter display
+		const filterInfo = this.containerEl.querySelector('.moments-filter-info');
+		if (filterInfo) {
+			this.updateFilterInfo(filterInfo as HTMLElement);
+		}
+
+		void this.renderTimeline();
+	}
+
+	setRelatedFilter(filePath: string): void {
+		debug('Setting related filter', { filePath });
+		this.filter.relatedToFile = filePath;
+		this.filter.startDate = null;
+		this.filter.endDate = null;
 
 		// Update filter display
 		const filterInfo = this.containerEl.querySelector('.moments-filter-info');
@@ -624,6 +656,7 @@ export class TimelineView extends ItemView {
 
 	clearFilter(): void {
 		debug('Clearing filter');
+		this.filter.relatedToFile = null;
 		this.setDateFilter(null, null);
 	}
 
