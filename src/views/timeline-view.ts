@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, TFile, MarkdownRenderer, Menu, MarkdownView } from 'obsidian';
+import { ItemView, WorkspaceLeaf, TFile, MarkdownRenderer, Menu, MarkdownView, Setting, setIcon } from 'obsidian';
 import type MomentsPlugin from '../main';
 import type { Moment, ImplicitMoment, TimelineFilter } from '../types';
 import { TIMELINE_VIEW_TYPE } from '../constants';
@@ -12,6 +12,11 @@ import { debug, debugTimed } from '../utils/debug';
 export class TimelineView extends ItemView {
 	plugin: MomentsPlugin;
 	private timelineContentEl: HTMLElement;
+	private headerTitleEl: HTMLElement;
+	private headerSubtitleEl: HTMLElement;
+	private clearFilterBtn: HTMLButtonElement;
+	private configPanelEl: HTMLElement;
+	private configOpen: boolean = false;
 	private filter: TimelineFilter = {
 		startDate: null,
 		endDate: null,
@@ -67,78 +72,94 @@ export class TimelineView extends ItemView {
 	}
 
 	private createHeader(header: HTMLElement): void {
-		// Navigation controls
-		const nav = header.createEl('div', { cls: 'moments-timeline-nav' });
+		const bar = header.createEl('div', { cls: 'moments-header-bar' });
 
-		// Today button
-		const todayBtn = nav.createEl('button', {
-			cls: 'clickable-icon nav-action-button',
-			text: 'Today',
-			attr: { 'aria-label': 'Go to today' },
+		const titleGroup = bar.createEl('div', { cls: 'moments-header-title-group' });
+		this.headerSubtitleEl = titleGroup.createEl('span', { cls: 'moments-header-subtitle moments-hidden' });
+		this.headerTitleEl = titleGroup.createEl('span', { cls: 'moments-header-title' });
+
+		const controls = bar.createEl('div', { cls: 'moments-header-controls' });
+
+		// Clear filter button (hidden by default)
+		this.clearFilterBtn = controls.createEl('button', {
+			cls: 'clickable-icon',
+			attr: { 'aria-label': 'Clear filter' },
 		});
-		todayBtn.addEventListener('click', () => this.goToToday());
+		setIcon(this.clearFilterBtn, 'x');
+		this.clearFilterBtn.addClass('moments-hidden');
+		this.clearFilterBtn.addEventListener('click', () => this.clearFilter());
 
-		// Previous day
-		const prevBtn = nav.createEl('button', {
-			cls: 'clickable-icon nav-action-button',
-			attr: { 'aria-label': 'Previous day' },
+		// Config toggle button
+		const configBtn = controls.createEl('button', {
+			cls: 'clickable-icon',
+			attr: { 'aria-label': 'Timeline settings' },
 		});
-		prevBtn.textContent = '←';
-		prevBtn.addEventListener('click', () => {
-			this.navigateDay(-1);
-		});
+		setIcon(configBtn, 'settings');
+		configBtn.addEventListener('click', () => this.toggleConfigPanel());
 
-		// Next day
-		const nextBtn = nav.createEl('button', {
-			cls: 'clickable-icon nav-action-button',
-			attr: { 'aria-label': 'Next day' },
-		});
-		nextBtn.textContent = '→';
-		nextBtn.addEventListener('click', () => {
-			this.navigateDay(1);
-		});
+		// Config panel (hidden by default)
+		this.configPanelEl = header.createEl('div', { cls: 'moments-config-panel' });
+		this.buildConfigPanel();
+		this.updateHeader();
+	}
 
-		// Filter indicator
-		const filterInfo = header.createEl('div', { cls: 'moments-filter-info' });
-		this.updateFilterInfo(filterInfo);
-
-		}
-
-	private updateFilterInfo(el: HTMLElement): void {
-		el.empty();
-
+	private updateHeader(): void {
 		const hasDateFilter = this.filter.startDate && this.filter.endDate;
 		const hasRelatedFilter = this.filter.relatedToFile;
+		const hasFilter = hasDateFilter || hasRelatedFilter;
 
 		if (hasRelatedFilter) {
 			const file = this.app.vault.getAbstractFileByPath(this.filter.relatedToFile!);
 			const basename = file instanceof TFile ? file.basename : this.filter.relatedToFile!.replace(/\.md$/, '');
-			el.setText(`Related to ${basename}`);
-
-			const clearBtn = el.createEl('button', {
-				cls: 'moments-clear-filter',
-				text: '×',
-				attr: { 'aria-label': 'Clear filter' },
-			});
-			clearBtn.addEventListener('click', () => this.clearFilter());
+			this.headerTitleEl.textContent = basename;
 		} else if (hasDateFilter) {
 			if (this.filter.startDate === this.filter.endDate) {
-				el.setText(`Showing ${this.formatDisplayDate(this.filter.startDate!)}`);
+				this.headerTitleEl.textContent = this.formatDisplayDate(this.filter.startDate!);
 			} else {
-				el.setText(
-					`Showing ${this.formatDisplayDate(this.filter.startDate!)} to ${this.formatDisplayDate(this.filter.endDate!)}`
-				);
+				this.headerTitleEl.textContent = `${this.formatDisplayDate(this.filter.startDate!)} – ${this.formatDisplayDate(this.filter.endDate!)}`;
 			}
-
-			const clearBtn = el.createEl('button', {
-				cls: 'moments-clear-filter',
-				text: '×',
-				attr: { 'aria-label': 'Clear filter' },
-			});
-			clearBtn.addEventListener('click', () => this.clearFilter());
 		} else {
-			el.setText('Recent moments');
+			this.headerTitleEl.textContent = 'Recent moments';
 		}
+
+		this.headerSubtitleEl.textContent = 'Filtering moments for';
+		this.headerSubtitleEl.toggleClass('moments-hidden', !hasFilter);
+		this.clearFilterBtn.toggleClass('moments-hidden', !hasFilter);
+	}
+
+	private toggleConfigPanel(): void {
+		this.configOpen = !this.configOpen;
+		this.configPanelEl.toggleClass('is-open', this.configOpen);
+	}
+
+	private buildConfigPanel(): void {
+		new Setting(this.configPanelEl)
+			.setName('Implicit moments')
+			.addToggle((toggle) =>
+				toggle.setValue(this.plugin.settings.showImplicitMoments).onChange((value) => {
+					this.plugin.settings.showImplicitMoments = value;
+					void this.plugin.saveSettings();
+					void this.renderTimeline();
+				})
+			);
+
+		new Setting(this.configPanelEl)
+			.setName('Auto-filter periodic notes')
+			.addToggle((toggle) =>
+				toggle.setValue(this.plugin.settings.autoFilterOnPeriodicNote).onChange((value) => {
+					this.plugin.settings.autoFilterOnPeriodicNote = value;
+					void this.plugin.saveSettings();
+				})
+			);
+
+		new Setting(this.configPanelEl)
+			.setName('Auto-filter related notes')
+			.addToggle((toggle) =>
+				toggle.setValue(this.plugin.settings.autoFilterRelatedMoments).onChange((value) => {
+					this.plugin.settings.autoFilterRelatedMoments = value;
+					void this.plugin.saveSettings();
+				})
+			);
 	}
 
 	private formatDisplayDate(dateStr: string): string {
@@ -603,26 +624,7 @@ export class TimelineView extends ItemView {
 		}
 	}
 
-	// Public methods for navigation and filtering
-
-	goToToday(): void {
-		const today = formatDate(new Date());
-		this.setDateFilter(today, today);
-	}
-
-	navigateDay(delta: number): void {
-		let currentDate: Date;
-
-		if (this.filter.startDate) {
-			currentDate = new Date(this.filter.startDate + 'T00:00:00');
-		} else {
-			currentDate = new Date();
-		}
-
-		currentDate.setDate(currentDate.getDate() + delta);
-		const newDate = formatDate(currentDate);
-		this.setDateFilter(newDate, newDate);
-	}
+	// Public methods for filtering
 
 	setDateFilter(startDate: string | null, endDate: string | null): void {
 		debug('Setting date filter', { startDate, endDate });
@@ -630,12 +632,7 @@ export class TimelineView extends ItemView {
 		this.filter.endDate = endDate;
 		this.filter.relatedToFile = null;
 
-		// Update filter display
-		const filterInfo = this.containerEl.querySelector('.moments-filter-info');
-		if (filterInfo) {
-			this.updateFilterInfo(filterInfo as HTMLElement);
-		}
-
+		this.updateHeader();
 		void this.renderTimeline();
 	}
 
@@ -645,12 +642,7 @@ export class TimelineView extends ItemView {
 		this.filter.startDate = null;
 		this.filter.endDate = null;
 
-		// Update filter display
-		const filterInfo = this.containerEl.querySelector('.moments-filter-info');
-		if (filterInfo) {
-			this.updateFilterInfo(filterInfo as HTMLElement);
-		}
-
+		this.updateHeader();
 		void this.renderTimeline();
 	}
 

@@ -90,14 +90,6 @@ export default class MomentsPlugin extends Plugin {
 			},
 		});
 
-		this.addCommand({
-			id: COMMANDS.GO_TO_TODAY,
-			name: 'Go to today',
-			callback: () => {
-				this.goToToday();
-			},
-		});
-
 		// Add ribbon icon with menu
 		this.addRibbonIcon(RIBBON_ICON, 'Moments', (evt: MouseEvent) => {
 			const menu = new Menu();
@@ -499,26 +491,6 @@ export default class MomentsPlugin extends Plugin {
 		});
 
 		void workspace.revealLeaf(leaf);
-	}
-
-	/**
-	 * Jump timeline to today.
-	 */
-	goToToday(): void {
-		const leaves = this.app.workspace.getLeavesOfType(TIMELINE_VIEW_TYPE);
-		if (leaves.length > 0) {
-			const view = leaves[0]!.view as TimelineView;
-			view.goToToday();
-		} else {
-			// Open timeline first, then go to today
-			void this.openTimeline().then(() => {
-				const newLeaves = this.app.workspace.getLeavesOfType(TIMELINE_VIEW_TYPE);
-				if (newLeaves.length > 0) {
-					const view = newLeaves[0]!.view as TimelineView;
-					view.goToToday();
-				}
-			});
-		}
 	}
 
 	/**

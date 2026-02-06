@@ -10,44 +10,68 @@
 	overflow: hidden;
 }
 
+/* Utility */
+.moments-hidden {
+	display: none;
+}
+
 /* Timeline Header */
 .moments-timeline-header {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 8px;
 	padding: 12px;
 	border-bottom: 1px solid var(--background-modifier-border);
 	background: var(--background-secondary);
 }
 
-.moments-timeline-nav {
-	display: flex;
-	gap: 4px;
-}
-
-.moments-filter-info {
-	flex: 1;
+.moments-header-bar {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	font-size: 12px;
-	color: var(--text-muted);
+	width: 100%;
 }
 
-.moments-clear-filter {
-	padding: 2px 6px;
-	background: transparent;
+.moments-header-title-group {
+	flex: 1;
+	min-width: 0;
+}
+
+.moments-header-subtitle {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	line-height: 1.2;
+}
+
+.moments-header-subtitle:not(.moments-hidden) {
+	display: block;
+}
+
+.moments-header-title {
+	font-weight: var(--font-semibold);
+	font-size: var(--font-ui-small);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.moments-header-controls {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	flex-shrink: 0;
+}
+
+.moments-config-panel {
+	display: none;
+	border-top: 1px solid var(--background-modifier-border);
+	padding-top: 8px;
+}
+
+.moments-config-panel.is-open {
+	display: block;
+}
+
+.moments-config-panel .setting-item {
+	padding: 4px 0;
 	border: none;
-	color: var(--text-muted);
-	cursor: pointer;
-	font-size: 14px;
-	border-radius: var(--radius-s);
-}
-
-.moments-clear-filter:hover {
-	color: var(--text-normal);
-	background: var(--background-modifier-hover);
 }
 
 /* Timeline Content */
@@ -217,11 +241,6 @@
 @media (max-width: 600px) {
 	.moments-timeline-header {
 		padding: 8px;
-	}
-
-	.moments-filter-info {
-		width: 100%;
-		order: 3;
 	}
 
 	.moments-card {
