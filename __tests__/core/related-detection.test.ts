@@ -268,6 +268,49 @@ describe('isMomentRelatedToFile', () => {
 		expect(isMomentRelatedToFile(app, moment, info)).toBe(true);
 	});
 
+	it('detects link on the heading line itself', () => {
+		const targetFile = mockFile('People/Rick.md', 'Rick');
+		const momentFile = mockFile('notes.md', 'notes');
+
+		const app = mockApp(
+			{
+				'notes.md': {
+					headings: [mockHeading(5, 3), mockHeading(20, 3)],
+					links: [mockLink(5, 'Rick')], // Link on the same line as the heading
+					sections: [{ position: { start: { line: 0, col: 0, offset: 0 }, end: { line: 30, col: 0, offset: 0 } } }],
+				} as unknown as CachedMetadata,
+			},
+			[targetFile, momentFile]
+		);
+
+		const moment = createTestMoment({ filePath: 'notes.md', headingLine: 5, headingLevel: 3 });
+		const info = getFileRelationInfo(app, targetFile);
+
+		expect(isMomentRelatedToFile(app, moment, info)).toBe(true);
+	});
+
+	it('detects tag on the heading line itself', () => {
+		const targetFile = mockFile('Projects.md', 'Projects');
+		const momentFile = mockFile('notes.md', 'notes');
+
+		const app = mockApp(
+			{
+				'notes.md': {
+					headings: [mockHeading(5, 3), mockHeading(20, 3)],
+					tags: [mockTag(5, '#projects')], // Tag on the same line as the heading
+					sections: [{ position: { start: { line: 0, col: 0, offset: 0 }, end: { line: 30, col: 0, offset: 0 } } }],
+				} as unknown as CachedMetadata,
+				'Projects.md': {},
+			},
+			[targetFile, momentFile]
+		);
+
+		const moment = createTestMoment({ filePath: 'notes.md', headingLine: 5, headingLevel: 3 });
+		const info = getFileRelationInfo(app, targetFile);
+
+		expect(isMomentRelatedToFile(app, moment, info)).toBe(true);
+	});
+
 	it('ignores link outside moment section', () => {
 		const targetFile = mockFile('People/Rick.md', 'Rick');
 		const momentFile = mockFile('notes.md', 'notes');

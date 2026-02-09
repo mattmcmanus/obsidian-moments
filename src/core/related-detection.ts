@@ -186,7 +186,7 @@ function hasMatchingLinkInRange(
 	const links = cache.links ?? [];
 	for (const link of links) {
 		const line = link.position.start.line;
-		if (line > startLine && line < endLine) {
+		if (line >= startLine && line < endLine) {
 			if (isLinkToTarget(link.link, relationInfo, app, sourcePath)) {
 				return true;
 			}
@@ -196,7 +196,7 @@ function hasMatchingLinkInRange(
 	const embeds = cache.embeds ?? [];
 	for (const embed of embeds) {
 		const line = embed.position.start.line;
-		if (line > startLine && line < endLine) {
+		if (line >= startLine && line < endLine) {
 			if (isLinkToTarget(embed.link, relationInfo, app, sourcePath)) {
 				return true;
 			}
@@ -263,7 +263,7 @@ function hasMatchingTagInRange(
 
 	for (const tagCache of tags) {
 		const line = tagCache.position.start.line;
-		if (line > startLine && line < endLine) {
+		if (line >= startLine && line < endLine) {
 			const tagName = tagCache.tag.slice(1).toLowerCase();
 			if (tagName === basenameTag || relationInfo.aliases.includes(tagName)) {
 				return true;
@@ -273,6 +273,14 @@ function hasMatchingTagInRange(
 
 	return false;
 }
+
+/**
+ * Buffer added to the furthest known cache position when estimating total lines.
+ * Content may exist beyond the last cached metadata item (e.g. plain text at the
+ * end of a file with no headings, links, or tags). 1000 lines is a generous upper
+ * bound that avoids prematurely cutting off inline moment sections.
+ */
+const END_OF_FILE_BUFFER = 1000;
 
 /**
  * Estimate the total number of lines in a file from its metadata cache.
@@ -302,6 +310,5 @@ function estimateTotalLines(cache: CachedMetadata): number {
 		}
 	}
 
-	// Add a buffer since the last cache item might not be at the end
-	return maxLine + 1000;
+	return maxLine + END_OF_FILE_BUFFER;
 }

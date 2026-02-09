@@ -12,20 +12,9 @@ export const PLUGIN_ID = 'moments';
  */
 export const TIMELINE_VIEW_TYPE = 'moments-timeline';
 
-/**
- * Default date format (ISO 8601)
- */
-export const DEFAULT_DATE_FORMAT = 'YYYY-MM-DD';
-
-/**
- * Default heading template for inline moments
- */
-export const DEFAULT_HEADING_TEMPLATE = '{{date}} {{title}}';
-
-/**
- * Default filename template for standalone moments
- */
-export const DEFAULT_FILENAME_TEMPLATE = '{{date}} - {{title}}';
+// Re-export defaults from their canonical source modules
+export { DEFAULT_DATE_FORMAT } from './core/date-parser';
+export { DEFAULT_HEADING_TEMPLATE, DEFAULT_FILENAME_TEMPLATE } from './core/template-engine';
 
 /**
  * Default target section for inline moments

@@ -150,6 +150,11 @@
 	color: var(--text-normal);
 }
 
+.moments-card-title p {
+	margin: 0;
+	display: inline;
+}
+
 .moments-card-source {
 	font-size: 12px;
 	color: var(--text-muted);

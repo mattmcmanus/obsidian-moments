@@ -25,6 +25,7 @@ import {
 } from './core/periodic-detection';
 import { findRelatedMoments, isFileRelatedByLinks } from './core/related-detection';
 import { setDebugMode, debug, debugTimed, debugCacheStats } from './utils/debug';
+import { getCommunityPlugin, getInternalPlugin } from './utils/obsidian-helpers';
 
 /**
  * Moments plugin for Obsidian
@@ -186,9 +187,6 @@ export default class MomentsPlugin extends Plugin {
 		});
 	}
 
-	/**
-	 * Execute a command by ID.
-	 */
 	private executeCommand(commandId: string): void {
 		const app = this.app as typeof this.app & {
 			commands: { executeCommandById: (id: string) => void };
@@ -344,7 +342,7 @@ export default class MomentsPlugin extends Plugin {
 				momentsFound++;
 			}
 		} catch (error) {
-			console.error(`Failed to scan file ${file.path}:`, error);
+			debug(`Failed to scan file ${file.path}`, error);
 		}
 
 		if (momentsFound > 0) {
@@ -398,8 +396,7 @@ export default class MomentsPlugin extends Plugin {
 	 * Get implicit moments (files created/modified without explicit moments).
 	 */
 	async getImplicitMomentsForDisplay(
-		filter: TimelineFilter,
-		explicitMomentsByDate: Map<string, Moment[]>
+		filter: TimelineFilter
 	): Promise<Map<string, ImplicitMoment[]>> {
 		const result = new Map<string, ImplicitMoment[]>();
 		const files = this.app.vault.getMarkdownFiles();
@@ -563,28 +560,14 @@ export default class MomentsPlugin extends Plugin {
 	 * Attempts to detect from Daily Notes or Periodic Notes plugins.
 	 */
 	private getPeriodicNotesFolder(type: 'daily' | 'weekly' | 'monthly'): string {
-		// Define types for internal plugin APIs
 		interface PeriodicNotesSettings {
 			daily?: { folder?: string };
 			weekly?: { folder?: string };
 			monthly?: { folder?: string };
 		}
 
-		interface PluginsApi {
-			plugins?: {
-				getPlugin?: (id: string) => { settings?: PeriodicNotesSettings } | undefined;
-			};
-			internalPlugins?: {
-				getPluginById?: (id: string) => {
-					instance?: { options?: { folder?: string } };
-				} | undefined;
-			};
-		}
-
-		const app = this.app as typeof this.app & PluginsApi;
-
 		// Try to get from Periodic Notes plugin
-		const periodicNotes = app.plugins?.getPlugin?.('periodic-notes');
+		const periodicNotes = getCommunityPlugin<{ settings?: PeriodicNotesSettings }>(this.app, 'periodic-notes');
 		if (periodicNotes?.settings) {
 			const settings = periodicNotes.settings;
 			switch (type) {
@@ -598,9 +581,9 @@ export default class MomentsPlugin extends Plugin {
 		}
 
 		// Try to get from core Daily Notes plugin
-		const dailyNotes = app.internalPlugins?.getPluginById?.('daily-notes');
+		const dailyNotes = getInternalPlugin(this.app, 'daily-notes');
 		if (dailyNotes?.instance?.options && type === 'daily') {
-			return dailyNotes.instance.options.folder || '';
+			return (dailyNotes.instance.options['folder'] as string) || '';
 		}
 
 		return '';

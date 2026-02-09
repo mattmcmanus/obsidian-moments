@@ -6,6 +6,8 @@ import {
 	getMomentsForFile,
 	getMomentsInDateRange,
 	hasExplicitMoments,
+	getAllDatesWithMoments,
+	clearCache,
 } from '../../src/core/moment-cache';
 import type { Moment } from '../../src/types';
 
@@ -232,5 +234,68 @@ describe('hasExplicitMoments', () => {
 		const cache = createMomentCache();
 
 		expect(hasExplicitMoments(cache, 'other.md')).toBe(false);
+	});
+});
+
+describe('getAllDatesWithMoments', () => {
+	it('returns dates sorted newest first', () => {
+		const cache = createMomentCache();
+		addMomentToCache(cache, createTestMoment({ date: '2026-01-15' }));
+		addMomentToCache(cache, createTestMoment({ date: '2026-03-01' }));
+		addMomentToCache(cache, createTestMoment({ date: '2026-02-04' }));
+
+		const dates = getAllDatesWithMoments(cache);
+
+		expect(dates).toEqual(['2026-03-01', '2026-02-04', '2026-01-15']);
+	});
+
+	it('returns empty array for empty cache', () => {
+		const cache = createMomentCache();
+
+		expect(getAllDatesWithMoments(cache)).toEqual([]);
+	});
+
+	it('returns unique dates even with multiple moments per date', () => {
+		const cache = createMomentCache();
+		addMomentToCache(cache, createTestMoment({ date: '2026-02-04', title: 'First' }));
+		addMomentToCache(cache, createTestMoment({ date: '2026-02-04', title: 'Second' }));
+
+		const dates = getAllDatesWithMoments(cache);
+
+		expect(dates).toEqual(['2026-02-04']);
+	});
+});
+
+describe('clearCache', () => {
+	it('empties all cache indexes', () => {
+		const cache = createMomentCache();
+		addMomentToCache(cache, createTestMoment({ date: '2026-02-04', filePath: 'a.md' }));
+		addMomentToCache(cache, createTestMoment({ date: '2026-02-05', filePath: 'b.md' }));
+
+		clearCache(cache);
+
+		expect(cache.byDate.size).toBe(0);
+		expect(cache.byFile.size).toBe(0);
+		expect(cache.filesWithMoments.size).toBe(0);
+	});
+
+	it('updates lastScan timestamp', () => {
+		const cache = createMomentCache();
+		const beforeClear = cache.lastScan;
+
+		// Small delay to ensure different timestamp
+		clearCache(cache);
+
+		expect(cache.lastScan).toBeGreaterThanOrEqual(beforeClear);
+	});
+});
+
+describe('removeMomentsForFile - edge cases', () => {
+	it('handles removing moments for a file not in the cache', () => {
+		const cache = createMomentCache();
+
+		removeMomentsForFile(cache, 'nonexistent.md');
+
+		expect(cache.byFile.size).toBe(0);
 	});
 });

@@ -5,6 +5,7 @@ import { TIMELINE_VIEW_TYPE } from '../constants';
 import { formatDate } from '../core/date-parser';
 import { extractContentUnderHeading } from '../core/content-extractor';
 import { debug, debugTimed } from '../utils/debug';
+import { getPreviousMonth, getDatesForMonth, groupMomentsByDate } from '../core/timeline-helpers';
 
 /**
  * Timeline view displaying moments grouped by day.
@@ -17,6 +18,7 @@ export class TimelineView extends ItemView {
 	private clearFilterBtn: HTMLButtonElement;
 	private configPanelEl: HTMLElement;
 	private configOpen: boolean = false;
+	private scrollHandler: (() => void) | null = null;
 	private filter: TimelineFilter = {
 		startDate: null,
 		endDate: null,
@@ -68,7 +70,7 @@ export class TimelineView extends ItemView {
 	}
 
 	async onClose(): Promise<void> {
-		// Cleanup
+		this.removeScrollListener();
 	}
 
 	private createHeader(header: HTMLElement): void {
@@ -190,14 +192,13 @@ export class TimelineView extends ItemView {
 		this.allMoments = this.plugin.getMomentsForDisplay(this.filter);
 
 		// Group moments by date
-		const groupedByDate = this.groupMomentsByDate(this.allMoments);
+		const groupedByDate = groupMomentsByDate(this.allMoments);
 
 		// Get implicit moments if enabled
 		this.allImplicitByDate = new Map();
 		if (this.plugin.settings.showImplicitMoments) {
 			this.allImplicitByDate = await this.plugin.getImplicitMomentsForDisplay(
-				this.filter,
-				groupedByDate
+				this.filter
 			);
 		}
 
@@ -254,7 +255,7 @@ export class TimelineView extends ItemView {
 
 		// Group by date if not provided
 		if (!groupedByDate) {
-			groupedByDate = this.groupMomentsByDate(this.allMoments);
+			groupedByDate = groupMomentsByDate(this.allMoments);
 		}
 
 		// Track oldest loaded month
@@ -263,12 +264,12 @@ export class TimelineView extends ItemView {
 		}
 
 		// Get all dates for this month
-		const monthDates = this.getDatesForMonth(month, groupedByDate);
+		const monthDates = getDatesForMonth(month, groupedByDate.keys(), this.allImplicitByDate.keys());
 
 		if (monthDates.length === 0) {
 			// No dates in this month, try older months (up to 12 months back on initial load)
 			if (searchDepth < 12) {
-				const prevMonth = this.getPreviousMonth(month);
+				const prevMonth = getPreviousMonth(month);
 				await this.loadMonth(prevMonth, groupedByDate, searchDepth + 1);
 			}
 			return;
@@ -285,29 +286,6 @@ export class TimelineView extends ItemView {
 		}
 	}
 
-	private getPreviousMonth(month: string): string {
-		const parts = month.split('-').map(Number);
-		const year = parts[0] || 2000;
-		const monthNum = parts[1] || 1;
-		let prevYear = year;
-		let prevMonth = monthNum - 1;
-
-		if (prevMonth < 1) {
-			prevMonth = 12;
-			prevYear--;
-		}
-
-		return `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
-	}
-
-	private getDatesForMonth(
-		month: string,
-		groupedByDate: Map<string, Moment[]>
-	): string[] {
-		const allDates = new Set([...groupedByDate.keys(), ...this.allImplicitByDate.keys()]);
-		return Array.from(allDates).filter((date) => date.startsWith(month));
-	}
-
 	private async loadOlderMonth(groupedByDate?: Map<string, Moment[]>): Promise<void> {
 		if (this.isLoadingMore || !this.hasMoreMonths || !this.oldestLoadedMonth) {
 			return;
@@ -316,11 +294,11 @@ export class TimelineView extends ItemView {
 		this.isLoadingMore = true;
 
 		// Calculate previous month
-		const prevMonthStr = this.getPreviousMonth(this.oldestLoadedMonth);
+		const prevMonthStr = getPreviousMonth(this.oldestLoadedMonth);
 
 		// Check if there are any dates older than our oldest loaded month
 		if (!groupedByDate) {
-			groupedByDate = this.groupMomentsByDate(this.allMoments);
+			groupedByDate = groupMomentsByDate(this.allMoments);
 		}
 
 		const allDates = new Set([...groupedByDate.keys(), ...this.allImplicitByDate.keys()]);
@@ -343,20 +321,29 @@ export class TimelineView extends ItemView {
 	}
 
 	private setupScrollListener(): void {
-		const scrollContainer = this.timelineContentEl;
+		this.removeScrollListener();
 
-		scrollContainer.addEventListener('scroll', () => {
+		this.scrollHandler = () => {
 			if (this.isLoadingMore || !this.hasMoreMonths) {
 				return;
 			}
 
-			const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+			const { scrollTop, scrollHeight, clientHeight } = this.timelineContentEl;
 			const scrolledToBottom = scrollTop + clientHeight >= scrollHeight - 100;
 
 			if (scrolledToBottom) {
 				void this.loadOlderMonth();
 			}
-		});
+		};
+
+		this.timelineContentEl.addEventListener('scroll', this.scrollHandler);
+	}
+
+	private removeScrollListener(): void {
+		if (this.scrollHandler) {
+			this.timelineContentEl?.removeEventListener('scroll', this.scrollHandler);
+			this.scrollHandler = null;
+		}
 	}
 
 	private addLoadMoreButton(): void {
@@ -391,24 +378,6 @@ export class TimelineView extends ItemView {
 		if (btn) {
 			btn.remove();
 		}
-	}
-
-	private groupMomentsByDate(moments: Moment[]): Map<string, Moment[]> {
-		const grouped = new Map<string, Moment[]>();
-
-		for (const moment of moments) {
-			if (!grouped.has(moment.date)) {
-				grouped.set(moment.date, []);
-			}
-			grouped.get(moment.date)!.push(moment);
-		}
-
-		// Sort moments within each day by firstSeen (newest first)
-		for (const [, dateMoments] of grouped) {
-			dateMoments.sort((a, b) => b.firstSeen - a.firstSeen);
-		}
-
-		return grouped;
 	}
 
 	private async renderDaySection(
@@ -471,10 +440,16 @@ export class TimelineView extends ItemView {
 		const cardHeader = card.createEl('div', { cls: 'moments-card-header' });
 
 		if (moment.title) {
-			cardHeader.createEl('span', {
+			const titleEl = cardHeader.createEl('span', {
 				cls: 'moments-card-title',
-				text: moment.title,
 			});
+			await MarkdownRenderer.render(
+				this.app,
+				moment.title,
+				titleEl,
+				moment.filePath,
+				this
+			);
 		}
 
 		// Source file indicator
@@ -514,7 +489,7 @@ export class TimelineView extends ItemView {
 				});
 			}
 		} catch (error) {
-			console.error('Failed to render moment content:', error);
+			debug('Failed to render moment content', { filePath: moment.filePath, error });
 			cardContent.createEl('em', {
 				cls: 'moments-card-error',
 				text: 'Failed to load content',
@@ -589,18 +564,11 @@ export class TimelineView extends ItemView {
 			text: 'Create your first moment',
 		});
 		createBtn.addEventListener('click', () => {
-			this.executeCommand('moments:create-standalone');
+			const app = this.app as typeof this.app & {
+				commands: { executeCommandById: (id: string) => void };
+			};
+			app.commands.executeCommandById('moments:create-standalone');
 		});
-	}
-
-	/**
-	 * Execute a command by ID.
-	 */
-	private executeCommand(commandId: string): void {
-		const app = this.app as typeof this.app & {
-			commands: { executeCommandById: (id: string) => void };
-		};
-		app.commands.executeCommandById(commandId);
 	}
 
 	private async openMoment(moment: Moment): Promise<void> {
