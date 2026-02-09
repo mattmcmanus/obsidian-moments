@@ -1,34 +1,19 @@
 import { App, FuzzySuggestModal, TFile, TFolder } from 'obsidian';
+import { getCommunityPlugin, getInternalPlugin } from '../utils/obsidian-helpers';
 
 /**
  * Get the templates folder path from core Templates plugin or Templater.
  */
 export function getTemplatesFolder(app: App): string | null {
 	// Try core Templates plugin
-	const coreTemplates = app as App & {
-		internalPlugins?: {
-			getPluginById?: (id: string) => {
-				enabled?: boolean;
-				instance?: { options?: { folder?: string } };
-			} | undefined;
-		};
-	};
-
-	const templatesPlugin = coreTemplates.internalPlugins?.getPluginById?.('templates');
-	if (templatesPlugin?.enabled && templatesPlugin.instance?.options?.folder) {
-		return templatesPlugin.instance.options.folder;
+	const templatesPlugin = getInternalPlugin(app, 'templates');
+	if (templatesPlugin?.enabled) {
+		const folder = templatesPlugin.instance?.options?.['folder'] as string | undefined;
+		if (folder) return folder;
 	}
 
 	// Try Templater community plugin
-	const communityPlugins = app as App & {
-		plugins?: {
-			getPlugin?: (id: string) => {
-				settings?: { templates_folder?: string };
-			} | undefined;
-		};
-	};
-
-	const templater = communityPlugins.plugins?.getPlugin?.('templater-obsidian');
+	const templater = getCommunityPlugin<{ settings?: { templates_folder?: string } }>(app, 'templater-obsidian');
 	if (templater?.settings?.templates_folder) {
 		return templater.settings.templates_folder;
 	}
@@ -69,13 +54,7 @@ function collectTemplateFiles(folder: TFolder, templates: TFile[]): void {
  * Check if Templater plugin is available.
  */
 export function isTemplaterAvailable(app: App): boolean {
-	const communityPlugins = app as App & {
-		plugins?: {
-			getPlugin?: (id: string) => unknown;
-		};
-	};
-
-	return !!communityPlugins.plugins?.getPlugin?.('templater-obsidian');
+	return !!getCommunityPlugin(app, 'templater-obsidian');
 }
 
 /**
@@ -84,18 +63,12 @@ export function isTemplaterAvailable(app: App): boolean {
 export async function applyTemplate(app: App, file: TFile, templateFile: TFile): Promise<void> {
 	// Try Templater first for dynamic templates
 	if (isTemplaterAvailable(app)) {
-		const communityPlugins = app as App & {
-			plugins?: {
-				getPlugin?: (id: string) => {
-					templater?: {
-						append_template_to_active_file?: (template: TFile) => Promise<void>;
-						write_template_to_file?: (template: TFile, file: TFile) => Promise<void>;
-					};
-				};
+		interface TemplaterPlugin {
+			templater?: {
+				write_template_to_file?: (template: TFile, file: TFile) => Promise<void>;
 			};
-		};
-
-		const templater = communityPlugins.plugins?.getPlugin?.('templater-obsidian');
+		}
+		const templater = getCommunityPlugin<TemplaterPlugin>(app, 'templater-obsidian');
 		if (templater?.templater?.write_template_to_file) {
 			await templater.templater.write_template_to_file(templateFile, file);
 			return;
