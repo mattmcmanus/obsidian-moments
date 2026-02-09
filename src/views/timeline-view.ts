@@ -198,8 +198,7 @@ export class TimelineView extends ItemView {
 		this.allImplicitByDate = new Map();
 		if (this.plugin.settings.showImplicitMoments) {
 			this.allImplicitByDate = await this.plugin.getImplicitMomentsForDisplay(
-				this.filter,
-				groupedByDate
+				this.filter
 			);
 		}
 

@@ -389,8 +389,7 @@ export default class MomentsPlugin extends Plugin {
 	 * Get implicit moments (files created/modified without explicit moments).
 	 */
 	async getImplicitMomentsForDisplay(
-		filter: TimelineFilter,
-		explicitMomentsByDate: Map<string, Moment[]>
+		filter: TimelineFilter
 	): Promise<Map<string, ImplicitMoment[]>> {
 		const result = new Map<string, ImplicitMoment[]>();
 		const files = this.app.vault.getMarkdownFiles();
