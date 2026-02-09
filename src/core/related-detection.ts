@@ -275,6 +275,14 @@ function hasMatchingTagInRange(
 }
 
 /**
+ * Buffer added to the furthest known cache position when estimating total lines.
+ * Content may exist beyond the last cached metadata item (e.g. plain text at the
+ * end of a file with no headings, links, or tags). 1000 lines is a generous upper
+ * bound that avoids prematurely cutting off inline moment sections.
+ */
+const END_OF_FILE_BUFFER = 1000;
+
+/**
  * Estimate the total number of lines in a file from its metadata cache.
  * Uses the furthest position found in any cache item.
  */
@@ -302,6 +310,5 @@ function estimateTotalLines(cache: CachedMetadata): number {
 		}
 	}
 
-	// Add a buffer since the last cache item might not be at the end
-	return maxLine + 1000;
+	return maxLine + END_OF_FILE_BUFFER;
 }
