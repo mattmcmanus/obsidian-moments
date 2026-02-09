@@ -353,10 +353,33 @@ export default class MomentsPlugin extends Plugin {
 			const fileCache = this.app.metadataCache.getFileCache(file);
 			if (fileCache?.headings) {
 				const now = Date.now();
+				const links = fileCache.links ?? [];
 				for (const heading of fileCache.headings) {
 					if (heading.level < 2) continue;
 					const headingLine = '#'.repeat(heading.level) + ' ' + heading.heading;
-					const parsed = parseHeadingForMoment(headingLine);
+					let parsed = parseHeadingForMoment(headingLine);
+
+					// metadataCache strips wikilink brackets from heading text.
+					// If standard parsing fails, check for date-formatted links on this line.
+					if (!parsed) {
+						const dateLink = links.find(
+							(link) =>
+								link.position.start.line === heading.position.start.line &&
+								/^\d{4}-\d{2}-\d{2}$/.test(link.link)
+						);
+						if (dateLink) {
+							const title = heading.heading
+								.replace(dateLink.link, '')
+								.replace(/\s+/g, ' ')
+								.trim();
+							parsed = {
+								date: dateLink.link,
+								title: title || null,
+								level: heading.level,
+							};
+						}
+					}
+
 					if (parsed) {
 						addMomentToCache(this.momentCache, {
 							type: 'inline',
