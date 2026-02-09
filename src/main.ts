@@ -18,6 +18,7 @@ import {
 	isStandaloneMoment,
 	createStandaloneMomentFromFile,
 } from './core/moment-scanner';
+import { parseHeadingForMoment } from './core/heading-parser';
 import { formatDate } from './core/date-parser';
 import {
 	detectPeriodicNoteType,
@@ -39,6 +40,11 @@ export default class MomentsPlugin extends Plugin {
 	private isScanning: boolean = false;
 	private pendingFileChanges: Set<string> = new Set();
 	private timelineRefreshPending: boolean = false;
+	private implicitMomentsGeneration: number = 0;
+	private implicitMomentsCache: {
+		key: string;
+		result: Map<string, ImplicitMoment[]>;
+	} | null = null;
 
 	// Debounced function to process pending file changes
 	private processPendingChanges = debounce(
@@ -152,6 +158,8 @@ export default class MomentsPlugin extends Plugin {
 				if (file instanceof TFile && file.extension === 'md') {
 					debug('File deleted', { path: file.path });
 					removeMomentsForFile(this.momentCache, file.path);
+					this.invalidateTimelineContentCache(file.path);
+					this.implicitMomentsGeneration++;
 					this.scheduleTimelineRefresh();
 				}
 			})
@@ -238,10 +246,13 @@ export default class MomentsPlugin extends Plugin {
 				// Re-scan the file
 				await this.scanFile(file);
 			}
+			// Invalidate content cache for changed files
+			this.invalidateTimelineContentCache(filePath);
 		}
 
 		done();
 		this.logCacheStats();
+		this.implicitMomentsGeneration++;
 
 		// Schedule a single timeline refresh after batch processing
 		this.scheduleTimelineRefresh();
@@ -270,8 +281,21 @@ export default class MomentsPlugin extends Plugin {
 
 		debug('Refreshing timeline views', { count: leaves.length });
 		for (const leaf of leaves) {
-			const view = leaf.view as TimelineView;
-			view.refresh();
+			if (leaf.view instanceof TimelineView) {
+				leaf.view.refresh();
+			}
+		}
+	}
+
+	/**
+	 * Invalidate timeline content cache for a specific file.
+	 */
+	private invalidateTimelineContentCache(filePath: string): void {
+		const leaves = this.app.workspace.getLeavesOfType(TIMELINE_VIEW_TYPE);
+		for (const leaf of leaves) {
+			if (leaf.view instanceof TimelineView) {
+				leaf.view.invalidateContentCache(filePath);
+			}
 		}
 	}
 
@@ -333,13 +357,59 @@ export default class MomentsPlugin extends Plugin {
 			}
 		}
 
-		// Scan file content for inline moments
+		// Scan for inline moments using metadataCache (avoids file reads)
 		try {
-			const content = await this.app.vault.read(file);
-			const moments = scanFileForMoments(content, file.path);
-			for (const moment of moments) {
-				addMomentToCache(this.momentCache, moment);
-				momentsFound++;
+			const fileCache = this.app.metadataCache.getFileCache(file);
+			if (fileCache?.headings) {
+				const now = Date.now();
+				const links = fileCache.links ?? [];
+				for (const heading of fileCache.headings) {
+					if (heading.level < 2) continue;
+					const headingLine = '#'.repeat(heading.level) + ' ' + heading.heading;
+					let parsed = parseHeadingForMoment(headingLine);
+
+					// metadataCache strips wikilink brackets from heading text.
+					// If standard parsing fails, check for date-formatted links on this line.
+					if (!parsed) {
+						const dateLink = links.find(
+							(link) =>
+								link.position.start.line === heading.position.start.line &&
+								/^\d{4}-\d{2}-\d{2}$/.test(link.link)
+						);
+						if (dateLink) {
+							const title = heading.heading
+								.replace(dateLink.link, '')
+								.replace(/\s+/g, ' ')
+								.trim();
+							parsed = {
+								date: dateLink.link,
+								title: title || null,
+								level: heading.level,
+							};
+						}
+					}
+
+					if (parsed) {
+						addMomentToCache(this.momentCache, {
+							type: 'inline',
+							date: parsed.date,
+							title: parsed.title,
+							filePath: file.path,
+							headingLevel: parsed.level,
+							headingLine: heading.position.start.line,
+							firstSeen: now,
+						});
+						momentsFound++;
+					}
+				}
+			} else {
+				// Fallback: read file content if metadataCache not available
+				const content = await this.app.vault.cachedRead(file);
+				const moments = scanFileForMoments(content, file.path);
+				for (const moment of moments) {
+					addMomentToCache(this.momentCache, moment);
+					momentsFound++;
+				}
 			}
 		} catch (error) {
 			debug(`Failed to scan file ${file.path}`, error);
@@ -394,10 +464,22 @@ export default class MomentsPlugin extends Plugin {
 
 	/**
 	 * Get implicit moments (files created/modified without explicit moments).
+	 * Results are cached and invalidated when files change.
 	 */
 	async getImplicitMomentsForDisplay(
 		filter: TimelineFilter
 	): Promise<Map<string, ImplicitMoment[]>> {
+		const cacheKey = [
+			this.implicitMomentsGeneration,
+			filter.startDate ?? '',
+			filter.endDate ?? '',
+			filter.relatedToFile ?? '',
+		].join('|');
+
+		if (this.implicitMomentsCache && this.implicitMomentsCache.key === cacheKey) {
+			return this.implicitMomentsCache.result;
+		}
+
 		const result = new Map<string, ImplicitMoment[]>();
 		const files = this.app.vault.getMarkdownFiles();
 
@@ -456,6 +538,7 @@ export default class MomentsPlugin extends Plugin {
 			implicit.sort((a, b) => b.timestamp - a.timestamp);
 		}
 
+		this.implicitMomentsCache = { key: cacheKey, result };
 		return result;
 	}
 
@@ -528,8 +611,9 @@ export default class MomentsPlugin extends Plugin {
 		// Update timeline filter
 		const leaves = this.app.workspace.getLeavesOfType(TIMELINE_VIEW_TYPE);
 		for (const leaf of leaves) {
-			const view = leaf.view as TimelineView;
-			view.setDateFilter(range.startDate, range.endDate);
+			if (leaf.view instanceof TimelineView) {
+				leaf.view.setDateFilter(range.startDate, range.endDate);
+			}
 		}
 
 		return true;
@@ -550,8 +634,9 @@ export default class MomentsPlugin extends Plugin {
 		// the timeline will show an empty state for this note
 		const leaves = this.app.workspace.getLeavesOfType(TIMELINE_VIEW_TYPE);
 		for (const leaf of leaves) {
-			const view = leaf.view as TimelineView;
-			view.setRelatedFilter(file.path);
+			if (leaf.view instanceof TimelineView) {
+				leaf.view.setRelatedFilter(file.path);
+			}
 		}
 	}
 

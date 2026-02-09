@@ -32,7 +32,18 @@ export class TimelineView extends ItemView {
 	private isLoadingMore: boolean = false;
 	private hasMoreMonths: boolean = true;
 	private allMoments: Moment[] = [];
+	private groupedByDate: Map<string, Moment[]> = new Map();
 	private allImplicitByDate: Map<string, ImplicitMoment[]> = new Map();
+
+	// Content cache: avoids re-reading files on every render
+	private contentCache: Map<string, string> = new Map();
+
+	// Data fingerprint to skip redundant re-renders
+	private lastRenderFingerprint: string = '';
+
+	// Lazy rendering: defer MarkdownRenderer until cards are visible
+	private cardObserver: IntersectionObserver | null = null;
+	private pendingCardRenders: Map<HTMLElement, Moment> = new Map();
 
 	constructor(leaf: WorkspaceLeaf, plugin: MomentsPlugin) {
 		super(leaf);
@@ -71,6 +82,8 @@ export class TimelineView extends ItemView {
 
 	async onClose(): Promise<void> {
 		this.removeScrollListener();
+		this.destroyCardObserver();
+		this.contentCache.clear();
 	}
 
 	private createHeader(header: HTMLElement): void {
@@ -174,12 +187,33 @@ export class TimelineView extends ItemView {
 		});
 	}
 
-	async renderTimeline(): Promise<void> {
+	async renderTimeline(force: boolean = false): Promise<void> {
 		if (!this.timelineContentEl) return;
 
 		const done = debugTimed('Timeline render');
 		debug('Rendering timeline', { filter: this.filter });
 
+		// Fetch data before DOM changes to allow fingerprint comparison
+		const moments = this.plugin.getMomentsForDisplay(this.filter);
+
+		let implicitByDate = new Map<string, ImplicitMoment[]>();
+		if (this.plugin.settings.showImplicitMoments) {
+			implicitByDate = await this.plugin.getImplicitMomentsForDisplay(
+				this.filter
+			);
+		}
+
+		// Build a fingerprint from moment data to detect changes
+		const fingerprint = this.computeFingerprint(moments, implicitByDate);
+		if (!force && fingerprint === this.lastRenderFingerprint) {
+			debug('Timeline render skipped - data unchanged');
+			done();
+			return;
+		}
+		this.lastRenderFingerprint = fingerprint;
+
+		// Tear down previous render state
+		this.destroyCardObserver();
 		this.timelineContentEl.empty();
 
 		// Reset pagination state
@@ -188,22 +222,13 @@ export class TimelineView extends ItemView {
 		this.hasMoreMonths = true;
 		this.isLoadingMore = false;
 
-		// Get moments from cache
-		this.allMoments = this.plugin.getMomentsForDisplay(this.filter);
-
-		// Group moments by date
-		const groupedByDate = groupMomentsByDate(this.allMoments);
-
-		// Get implicit moments if enabled
-		this.allImplicitByDate = new Map();
-		if (this.plugin.settings.showImplicitMoments) {
-			this.allImplicitByDate = await this.plugin.getImplicitMomentsForDisplay(
-				this.filter
-			);
-		}
+		// Store data on instance for use during pagination
+		this.allMoments = moments;
+		this.groupedByDate = groupMomentsByDate(this.allMoments);
+		this.allImplicitByDate = implicitByDate;
 
 		// Get all dates
-		const allDates = new Set([...groupedByDate.keys(), ...this.allImplicitByDate.keys()]);
+		const allDates = new Set([...this.groupedByDate.keys(), ...this.allImplicitByDate.keys()]);
 
 		debug('Timeline data loaded', {
 			explicitMoments: this.allMoments.length,
@@ -217,11 +242,14 @@ export class TimelineView extends ItemView {
 			return;
 		}
 
+		// Set up lazy rendering observer
+		this.setupCardObserver();
+
 		// Determine which month to start with
 		const startMonth = this.getStartMonth();
 
 		// Load initial month
-		await this.loadMonth(startMonth, groupedByDate);
+		this.loadMonth(startMonth);
 
 		// Add scroll listener for infinite loading
 		this.setupScrollListener();
@@ -230,6 +258,28 @@ export class TimelineView extends ItemView {
 		this.addLoadMoreButton();
 
 		done();
+	}
+
+	private computeFingerprint(
+		moments: Moment[],
+		implicitByDate: Map<string, ImplicitMoment[]>
+	): string {
+		// Moments fingerprint: count + key fields of each moment
+		const parts: string[] = [
+			String(moments.length),
+			this.plugin.settings.showImplicitMoments ? '1' : '0',
+			this.filter.startDate ?? '',
+			this.filter.endDate ?? '',
+			this.filter.relatedToFile ?? '',
+		];
+		for (const m of moments) {
+			parts.push(`${m.filePath}:${m.date}:${m.headingLine ?? 's'}`);
+		}
+		// Implicit fingerprint: count per date
+		for (const [date, items] of implicitByDate) {
+			parts.push(`i:${date}:${items.length}`);
+		}
+		return parts.join('|');
 	}
 
 	private getStartMonth(): string {
@@ -242,21 +292,15 @@ export class TimelineView extends ItemView {
 		return formatDate(new Date()).substring(0, 7);
 	}
 
-	private async loadMonth(
+	private loadMonth(
 		month: string,
-		groupedByDate?: Map<string, Moment[]>,
 		searchDepth: number = 0
-	): Promise<void> {
+	): void {
 		if (this.loadedMonths.has(month)) {
 			return;
 		}
 
 		this.loadedMonths.add(month);
-
-		// Group by date if not provided
-		if (!groupedByDate) {
-			groupedByDate = groupMomentsByDate(this.allMoments);
-		}
 
 		// Track oldest loaded month
 		if (!this.oldestLoadedMonth || month < this.oldestLoadedMonth) {
@@ -264,13 +308,13 @@ export class TimelineView extends ItemView {
 		}
 
 		// Get all dates for this month
-		const monthDates = getDatesForMonth(month, groupedByDate.keys(), this.allImplicitByDate.keys());
+		const monthDates = getDatesForMonth(month, this.groupedByDate.keys(), this.allImplicitByDate.keys());
 
 		if (monthDates.length === 0) {
 			// No dates in this month, try older months (up to 12 months back on initial load)
 			if (searchDepth < 12) {
 				const prevMonth = getPreviousMonth(month);
-				await this.loadMonth(prevMonth, groupedByDate, searchDepth + 1);
+				this.loadMonth(prevMonth, searchDepth + 1);
 			}
 			return;
 		}
@@ -279,14 +323,14 @@ export class TimelineView extends ItemView {
 		monthDates.sort((a, b) => b.localeCompare(a));
 
 		for (const date of monthDates) {
-			const dayMoments = groupedByDate.get(date) || [];
+			const dayMoments = this.groupedByDate.get(date) || [];
 			const dayImplicit = this.allImplicitByDate.get(date) || [];
 
-			await this.renderDaySection(date, dayMoments, dayImplicit);
+			this.renderDaySection(date, dayMoments, dayImplicit);
 		}
 	}
 
-	private async loadOlderMonth(groupedByDate?: Map<string, Moment[]>): Promise<void> {
+	private loadOlderMonth(): void {
 		if (this.isLoadingMore || !this.hasMoreMonths || !this.oldestLoadedMonth) {
 			return;
 		}
@@ -297,11 +341,7 @@ export class TimelineView extends ItemView {
 		const prevMonthStr = getPreviousMonth(this.oldestLoadedMonth);
 
 		// Check if there are any dates older than our oldest loaded month
-		if (!groupedByDate) {
-			groupedByDate = groupMomentsByDate(this.allMoments);
-		}
-
-		const allDates = new Set([...groupedByDate.keys(), ...this.allImplicitByDate.keys()]);
+		const allDates = new Set([...this.groupedByDate.keys(), ...this.allImplicitByDate.keys()]);
 		const hasOlderDates = Array.from(allDates).some((date) => date < this.oldestLoadedMonth!);
 
 		if (!hasOlderDates) {
@@ -312,7 +352,7 @@ export class TimelineView extends ItemView {
 		}
 
 		// Load the previous month (which may recursively load more if empty)
-		await this.loadMonth(prevMonthStr, groupedByDate, 0);
+		this.loadMonth(prevMonthStr, 0);
 
 		this.isLoadingMore = false;
 
@@ -323,20 +363,23 @@ export class TimelineView extends ItemView {
 	private setupScrollListener(): void {
 		this.removeScrollListener();
 
+		let rafPending = false;
 		this.scrollHandler = () => {
-			if (this.isLoadingMore || !this.hasMoreMonths) {
+			if (rafPending || this.isLoadingMore || !this.hasMoreMonths) {
 				return;
 			}
-
-			const { scrollTop, scrollHeight, clientHeight } = this.timelineContentEl;
-			const scrolledToBottom = scrollTop + clientHeight >= scrollHeight - 100;
-
-			if (scrolledToBottom) {
-				void this.loadOlderMonth();
-			}
+			rafPending = true;
+			requestAnimationFrame(() => {
+				rafPending = false;
+				const { scrollTop, scrollHeight, clientHeight } = this.timelineContentEl;
+				const scrolledToBottom = scrollTop + clientHeight >= scrollHeight - 100;
+				if (scrolledToBottom) {
+					this.loadOlderMonth();
+				}
+			});
 		};
 
-		this.timelineContentEl.addEventListener('scroll', this.scrollHandler);
+		this.timelineContentEl.addEventListener('scroll', this.scrollHandler, { passive: true });
 	}
 
 	private removeScrollListener(): void {
@@ -344,6 +387,33 @@ export class TimelineView extends ItemView {
 			this.timelineContentEl?.removeEventListener('scroll', this.scrollHandler);
 			this.scrollHandler = null;
 		}
+	}
+
+	private setupCardObserver(): void {
+		this.pendingCardRenders.clear();
+		this.cardObserver = new IntersectionObserver(
+			(entries) => {
+				for (const entry of entries) {
+					if (!entry.isIntersecting) continue;
+					const card = entry.target as HTMLElement;
+					const moment = this.pendingCardRenders.get(card);
+					if (moment) {
+						this.pendingCardRenders.delete(card);
+						this.cardObserver?.unobserve(card);
+						void this.renderCardContent(card, moment);
+					}
+				}
+			},
+			{ root: this.timelineContentEl, rootMargin: '200px 0px' }
+		);
+	}
+
+	private destroyCardObserver(): void {
+		if (this.cardObserver) {
+			this.cardObserver.disconnect();
+			this.cardObserver = null;
+		}
+		this.pendingCardRenders.clear();
 	}
 
 	private addLoadMoreButton(): void {
@@ -362,7 +432,7 @@ export class TimelineView extends ItemView {
 		});
 
 		loadMoreBtn.addEventListener('click', () => {
-			void this.loadOlderMonth();
+			this.loadOlderMonth();
 		});
 	}
 
@@ -380,11 +450,11 @@ export class TimelineView extends ItemView {
 		}
 	}
 
-	private async renderDaySection(
+	private renderDaySection(
 		date: string,
 		moments: Moment[],
 		implicitMoments: ImplicitMoment[]
-	): Promise<void> {
+	): void {
 		const section = this.timelineContentEl.createEl('div', { cls: 'moments-day-section' });
 
 		// Day header
@@ -422,9 +492,9 @@ export class TimelineView extends ItemView {
 			menu.showAtMouseEvent(e);
 		});
 
-		// Render primary moments
+		// Create card shells (content rendered lazily via IntersectionObserver)
 		for (const moment of moments) {
-			await this.renderMomentCard(content, moment);
+			this.createMomentCardShell(content, moment);
 		}
 
 		// Render implicit moments
@@ -433,23 +503,21 @@ export class TimelineView extends ItemView {
 		}
 	}
 
-	private async renderMomentCard(container: HTMLElement, moment: Moment): Promise<void> {
+	/**
+	 * Create the DOM shell for a moment card. Markdown content is deferred
+	 * until the card scrolls into view (via IntersectionObserver).
+	 */
+	private createMomentCardShell(container: HTMLElement, moment: Moment): void {
 		const card = container.createEl('div', { cls: 'moments-card' });
 
-		// Card header with title
+		// Card header with title (plain text initially)
 		const cardHeader = card.createEl('div', { cls: 'moments-card-header' });
 
 		if (moment.title) {
-			const titleEl = cardHeader.createEl('span', {
+			cardHeader.createEl('span', {
 				cls: 'moments-card-title',
+				text: moment.title,
 			});
-			await MarkdownRenderer.render(
-				this.app,
-				moment.title,
-				titleEl,
-				moment.filePath,
-				this
-			);
 		}
 
 		// Source file indicator
@@ -468,63 +536,106 @@ export class TimelineView extends ItemView {
 			});
 		}
 
-		// Card content
-		const cardContent = card.createEl('div', { cls: 'moments-card-content' });
+		// Placeholder content area (filled when visible)
+		card.createEl('div', { cls: 'moments-card-content' });
 
-		// Load and render content
+		// Click card to open moment
+		card.addEventListener('click', () => {
+			void this.openMoment(moment);
+		});
+
+		// Register for lazy rendering
+		this.pendingCardRenders.set(card, moment);
+		this.cardObserver?.observe(card);
+	}
+
+	/**
+	 * Render the full markdown content for a card that has scrolled into view.
+	 */
+	private async renderCardContent(card: HTMLElement, moment: Moment): Promise<void> {
+		// Render title as markdown (replacing the plain text)
+		const titleEl = card.querySelector('.moments-card-title');
+		if (titleEl && moment.title) {
+			titleEl.textContent = '';
+			await MarkdownRenderer.render(
+				this.app,
+				moment.title,
+				titleEl as HTMLElement,
+				moment.filePath,
+				this
+			);
+		}
+
+		// Render body content
+		const cardContent = card.querySelector('.moments-card-content');
+		if (!cardContent) return;
+
 		try {
 			const content = await this.getMomentContent(moment);
 			if (content) {
 				await MarkdownRenderer.render(
 					this.app,
 					content,
-					cardContent,
+					cardContent as HTMLElement,
 					moment.filePath,
 					this
 				);
 			} else {
-				cardContent.createEl('em', {
+				(cardContent as HTMLElement).createEl('em', {
 					cls: 'moments-card-empty',
 					text: 'No content',
 				});
 			}
 		} catch (error) {
 			debug('Failed to render moment content', { filePath: moment.filePath, error });
-			cardContent.createEl('em', {
+			(cardContent as HTMLElement).createEl('em', {
 				cls: 'moments-card-error',
 				text: 'Failed to load content',
 			});
 		}
+	}
 
-		// Click card to open moment
-		card.addEventListener('click', () => {
-			void this.openMoment(moment);
-		});
+	private contentCacheKey(moment: Moment): string {
+		return moment.type === 'standalone'
+			? `${moment.filePath}:standalone`
+			: `${moment.filePath}:${moment.headingLine}`;
 	}
 
 	private async getMomentContent(moment: Moment): Promise<string> {
+		const cacheKey = this.contentCacheKey(moment);
+		const cached = this.contentCache.get(cacheKey);
+		if (cached !== undefined) {
+			return cached;
+		}
+
 		const file = this.app.vault.getAbstractFileByPath(moment.filePath);
 		if (!(file instanceof TFile)) {
 			return '';
 		}
 
-		const fileContent = await this.app.vault.read(file);
+		const fileContent = await this.app.vault.cachedRead(file);
+		let content = '';
 
 		if (moment.type === 'standalone') {
-			// Return full file content
-			return fileContent;
-		}
-
-		// Extract content under the heading
-		if (moment.headingLine !== undefined && moment.headingLevel !== undefined) {
-			return extractContentUnderHeading(
+			content = fileContent;
+		} else if (moment.headingLine !== undefined && moment.headingLevel !== undefined) {
+			content = extractContentUnderHeading(
 				fileContent,
 				moment.headingLine,
 				moment.headingLevel
 			);
 		}
 
-		return '';
+		this.contentCache.set(cacheKey, content);
+		return content;
+	}
+
+	invalidateContentCache(filePath: string): void {
+		for (const key of this.contentCache.keys()) {
+			if (key.startsWith(filePath + ':')) {
+				this.contentCache.delete(key);
+			}
+		}
 	}
 
 	private renderImplicitMoment(container: HTMLElement, implicit: ImplicitMoment): void {

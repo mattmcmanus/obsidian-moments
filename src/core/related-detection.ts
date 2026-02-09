@@ -1,5 +1,6 @@
 import type { App, TFile, CachedMetadata, HeadingCache } from 'obsidian';
 import type { Moment } from '../types';
+import { debug } from '../utils/debug';
 
 /**
  * Information about a file used for relation matching.
@@ -77,7 +78,10 @@ export function isMomentRelatedToFile(
 	relationInfo: FileRelationInfo
 ): boolean {
 	const cache = app.metadataCache.getCache(moment.filePath);
-	if (!cache) return false;
+	if (!cache) {
+		debug('Related check: no cache for file', { filePath: moment.filePath });
+		return false;
+	}
 
 	if (moment.type === 'standalone') {
 		// For standalone moments, check the entire file
@@ -95,8 +99,40 @@ export function isMomentRelatedToFile(
 	const totalLines = estimateTotalLines(cache);
 	const endLine = findMomentEndLine(headings, moment.headingLine, moment.headingLevel, totalLines);
 
-	return hasMatchingLinkInRange(cache, relationInfo, app, moment.filePath, moment.headingLine, endLine) ||
-		hasMatchingTagInRange(cache, relationInfo, moment.headingLine, endLine);
+	const links = cache.links ?? [];
+	const linksInRange = links.filter(
+		(l) => l.position.start.line >= moment.headingLine! && l.position.start.line < endLine
+	);
+
+	debug('Related check', {
+		momentFile: moment.filePath,
+		momentTitle: moment.title,
+		headingLine: moment.headingLine,
+		endLine,
+		targetBasename: relationInfo.basename,
+		targetPath: relationInfo.filePath,
+		totalLinksInFile: links.length,
+		linksInRange: linksInRange.map((l) => ({
+			link: l.link,
+			line: l.position.start.line,
+		})),
+		headingsInFile: headings.map((h) => ({
+			heading: h.heading,
+			line: h.position.start.line,
+			level: h.level,
+		})),
+	});
+
+	if (hasMatchingLinkInRange(cache, relationInfo, app, moment.filePath, moment.headingLine, endLine) ||
+		hasMatchingTagInRange(cache, relationInfo, moment.headingLine, endLine)) {
+		return true;
+	}
+
+	// Fallback: Obsidian's metadataCache may not include wikilinks embedded in
+	// heading text in cache.links. The heading text has brackets stripped, so
+	// [[Steve Cummings]] becomes "Steve Cummings". Check if the heading text
+	// mentions the target AND the file has a confirmed resolved link to the target.
+	return hasHeadingMentionWithResolvedLink(headings, moment.headingLine, relationInfo, app, moment.filePath);
 }
 
 /**
@@ -268,6 +304,60 @@ function hasMatchingTagInRange(
 			if (tagName === basenameTag || relationInfo.aliases.includes(tagName)) {
 				return true;
 			}
+		}
+	}
+
+	return false;
+}
+
+/**
+ * Fallback for detecting related wikilinks in heading text.
+ *
+ * Obsidian's metadataCache strips [[]] brackets from heading text and may not
+ * include heading-embedded wikilinks in cache.links. This checks whether:
+ * 1. The heading text contains the target's basename or alias
+ * 2. The file has a confirmed resolved link to the target file
+ *
+ * Both conditions must be true, ensuring we only match actual wikilinks.
+ */
+function hasHeadingMentionWithResolvedLink(
+	headings: HeadingCache[],
+	headingLine: number,
+	relationInfo: FileRelationInfo,
+	app: App,
+	sourcePath: string
+): boolean {
+	// Verify the file has a resolved link to the target
+	const resolved = app.metadataCache.resolvedLinks;
+	const fileLinks = resolved[sourcePath];
+	if (!fileLinks || !fileLinks[relationInfo.filePath]) {
+		return false;
+	}
+
+	// Find the heading on this line
+	const heading = headings.find((h) => h.position.start.line === headingLine);
+	if (!heading) {
+		return false;
+	}
+
+	const headingText = heading.heading.toLowerCase();
+	const basename = relationInfo.basename.toLowerCase();
+
+	if (headingText.includes(basename)) {
+		debug('Related: heading text fallback matched basename', {
+			heading: heading.heading,
+			basename: relationInfo.basename,
+		});
+		return true;
+	}
+
+	for (const alias of relationInfo.aliases) {
+		if (headingText.includes(alias)) {
+			debug('Related: heading text fallback matched alias', {
+				heading: heading.heading,
+				alias,
+			});
+			return true;
 		}
 	}
 
