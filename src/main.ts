@@ -335,7 +335,7 @@ export default class MomentsPlugin extends Plugin {
 				momentsFound++;
 			}
 		} catch (error) {
-			console.error(`Failed to scan file ${file.path}:`, error);
+			debug(`Failed to scan file ${file.path}`, error);
 		}
 
 		if (momentsFound > 0) {

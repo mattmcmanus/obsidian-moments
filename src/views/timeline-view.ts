@@ -530,7 +530,7 @@ export class TimelineView extends ItemView {
 				});
 			}
 		} catch (error) {
-			console.error('Failed to render moment content:', error);
+			debug('Failed to render moment content', { filePath: moment.filePath, error });
 			cardContent.createEl('em', {
 				cls: 'moments-card-error',
 				text: 'Failed to load content',
