@@ -327,17 +327,20 @@ export class TimelineView extends ItemView {
 	private setupScrollListener(): void {
 		this.removeScrollListener();
 
+		let rafPending = false;
 		this.scrollHandler = () => {
-			if (this.isLoadingMore || !this.hasMoreMonths) {
+			if (rafPending || this.isLoadingMore || !this.hasMoreMonths) {
 				return;
 			}
-
-			const { scrollTop, scrollHeight, clientHeight } = this.timelineContentEl;
-			const scrolledToBottom = scrollTop + clientHeight >= scrollHeight - 100;
-
-			if (scrolledToBottom) {
-				void this.loadOlderMonth();
-			}
+			rafPending = true;
+			requestAnimationFrame(() => {
+				rafPending = false;
+				const { scrollTop, scrollHeight, clientHeight } = this.timelineContentEl;
+				const scrolledToBottom = scrollTop + clientHeight >= scrollHeight - 100;
+				if (scrolledToBottom) {
+					void this.loadOlderMonth();
+				}
+			});
 		};
 
 		this.timelineContentEl.addEventListener('scroll', this.scrollHandler, { passive: true });
