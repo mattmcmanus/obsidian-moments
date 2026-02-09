@@ -17,6 +17,7 @@ export class TimelineView extends ItemView {
 	private clearFilterBtn: HTMLButtonElement;
 	private configPanelEl: HTMLElement;
 	private configOpen: boolean = false;
+	private scrollHandler: (() => void) | null = null;
 	private filter: TimelineFilter = {
 		startDate: null,
 		endDate: null,
@@ -68,7 +69,7 @@ export class TimelineView extends ItemView {
 	}
 
 	async onClose(): Promise<void> {
-		// Cleanup
+		this.removeScrollListener();
 	}
 
 	private createHeader(header: HTMLElement): void {
@@ -343,20 +344,29 @@ export class TimelineView extends ItemView {
 	}
 
 	private setupScrollListener(): void {
-		const scrollContainer = this.timelineContentEl;
+		this.removeScrollListener();
 
-		scrollContainer.addEventListener('scroll', () => {
+		this.scrollHandler = () => {
 			if (this.isLoadingMore || !this.hasMoreMonths) {
 				return;
 			}
 
-			const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+			const { scrollTop, scrollHeight, clientHeight } = this.timelineContentEl;
 			const scrolledToBottom = scrollTop + clientHeight >= scrollHeight - 100;
 
 			if (scrolledToBottom) {
 				void this.loadOlderMonth();
 			}
-		});
+		};
+
+		this.timelineContentEl.addEventListener('scroll', this.scrollHandler);
+	}
+
+	private removeScrollListener(): void {
+		if (this.scrollHandler) {
+			this.timelineContentEl?.removeEventListener('scroll', this.scrollHandler);
+			this.scrollHandler = null;
+		}
 	}
 
 	private addLoadMoreButton(): void {
