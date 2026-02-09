@@ -6,6 +6,7 @@ import {
 	isMomentRelatedToFile,
 	findRelatedMoments,
 	isFileRelatedByLinks,
+	hasTitleMention,
 } from '../../src/core/related-detection';
 
 // Helper to create a mock HeadingCache
@@ -614,6 +615,110 @@ describe('findRelatedMoments', () => {
 
 		const result = findRelatedMoments(app, moments, targetFile);
 		expect(result).toHaveLength(2);
+	});
+});
+
+describe('hasTitleMention', () => {
+	it('detects basename in title', () => {
+		const info = { filePath: 'People/Steve Cummings.md', basename: 'Steve Cummings', aliases: [] };
+		expect(hasTitleMention('Meeting with Steve Cummings about insurance', info)).toBe(true);
+	});
+
+	it('is case-insensitive', () => {
+		const info = { filePath: 'People/Steve.md', basename: 'Steve', aliases: [] };
+		expect(hasTitleMention('Call with STEVE about plans', info)).toBe(true);
+	});
+
+	it('detects alias in title', () => {
+		const info = { filePath: 'Projects.md', basename: 'Projects', aliases: ['proj'] };
+		expect(hasTitleMention('Discuss proj timeline', info)).toBe(true);
+	});
+
+	it('returns false when basename not present', () => {
+		const info = { filePath: 'People/Steve Cummings.md', basename: 'Steve Cummings', aliases: [] };
+		expect(hasTitleMention('Meeting about insurance', info)).toBe(false);
+	});
+
+	it('matches substring occurrences', () => {
+		const info = { filePath: 'AI.md', basename: 'AI', aliases: [] };
+		expect(hasTitleMention('AI discussion', info)).toBe(true);
+		expect(hasTitleMention('Working on AI models', info)).toBe(true);
+	});
+
+	it('handles special characters in basename', () => {
+		const info = { filePath: 'Project (Alpha).md', basename: 'Project (Alpha)', aliases: [] };
+		expect(hasTitleMention('Review Project (Alpha) status', info)).toBe(true);
+	});
+
+	it('returns false for empty title', () => {
+		const info = { filePath: 'Steve.md', basename: 'Steve', aliases: [] };
+		expect(hasTitleMention('', info)).toBe(false);
+	});
+});
+
+describe('isMomentRelatedToFile - title mentions', () => {
+	it('detects plain text mention of target in moment title', () => {
+		const targetFile = mockFile('People/Steve Cummings.md', 'Steve Cummings');
+		const momentFile = mockFile('projects.md', 'projects');
+
+		const app = mockApp(
+			{
+				'projects.md': {
+					headings: [mockHeading(5, 3), mockHeading(20, 3)],
+					sections: [{ position: { start: { line: 0, col: 0, offset: 0 }, end: { line: 30, col: 0, offset: 0 } } }],
+				} as unknown as CachedMetadata,
+			},
+			[targetFile, momentFile]
+		);
+
+		const moment = createTestMoment({
+			filePath: 'projects.md',
+			headingLine: 5,
+			headingLevel: 3,
+			title: 'Meeting with Steve Cummings about disability insurance',
+		});
+		const info = getFileRelationInfo(app, targetFile);
+
+		expect(isMomentRelatedToFile(app, moment, info)).toBe(true);
+	});
+
+	it('detects title mention even without cache', () => {
+		const targetFile = mockFile('People/Rick.md', 'Rick');
+
+		const app = mockApp({}, [targetFile]);
+
+		const moment = createTestMoment({
+			filePath: 'notes.md',
+			title: 'Call with Rick about project',
+		});
+		const info = getFileRelationInfo(app, targetFile);
+
+		expect(isMomentRelatedToFile(app, moment, info)).toBe(true);
+	});
+
+	it('does not match when title is null', () => {
+		const targetFile = mockFile('People/Rick.md', 'Rick');
+		const momentFile = mockFile('notes.md', 'notes');
+
+		const app = mockApp(
+			{
+				'notes.md': {
+					headings: [mockHeading(5, 3)],
+					sections: [{ position: { start: { line: 0, col: 0, offset: 0 }, end: { line: 30, col: 0, offset: 0 } } }],
+				} as unknown as CachedMetadata,
+			},
+			[targetFile, momentFile]
+		);
+
+		const moment = createTestMoment({
+			filePath: 'notes.md',
+			headingLine: 5,
+			headingLevel: 3,
+			title: null,
+		});
+		const info = getFileRelationInfo(app, targetFile);
+
+		expect(isMomentRelatedToFile(app, moment, info)).toBe(false);
 	});
 });
 
