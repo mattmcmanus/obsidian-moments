@@ -508,7 +508,7 @@ export class TimelineView extends ItemView {
 			return '';
 		}
 
-		const fileContent = await this.app.vault.read(file);
+		const fileContent = await this.app.vault.cachedRead(file);
 
 		if (moment.type === 'standalone') {
 			// Return full file content

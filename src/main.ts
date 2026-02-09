@@ -335,7 +335,7 @@ export default class MomentsPlugin extends Plugin {
 
 		// Scan file content for inline moments
 		try {
-			const content = await this.app.vault.read(file);
+			const content = await this.app.vault.cachedRead(file);
 			const moments = scanFileForMoments(content, file.path);
 			for (const moment of moments) {
 				addMomentToCache(this.momentCache, moment);
