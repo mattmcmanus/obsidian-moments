@@ -281,8 +281,9 @@ export default class MomentsPlugin extends Plugin {
 
 		debug('Refreshing timeline views', { count: leaves.length });
 		for (const leaf of leaves) {
-			const view = leaf.view as TimelineView;
-			view.refresh();
+			if (leaf.view instanceof TimelineView) {
+				leaf.view.refresh();
+			}
 		}
 	}
 
@@ -292,8 +293,9 @@ export default class MomentsPlugin extends Plugin {
 	private invalidateTimelineContentCache(filePath: string): void {
 		const leaves = this.app.workspace.getLeavesOfType(TIMELINE_VIEW_TYPE);
 		for (const leaf of leaves) {
-			const view = leaf.view as TimelineView;
-			view.invalidateContentCache(filePath);
+			if (leaf.view instanceof TimelineView) {
+				leaf.view.invalidateContentCache(filePath);
+			}
 		}
 	}
 
@@ -609,8 +611,9 @@ export default class MomentsPlugin extends Plugin {
 		// Update timeline filter
 		const leaves = this.app.workspace.getLeavesOfType(TIMELINE_VIEW_TYPE);
 		for (const leaf of leaves) {
-			const view = leaf.view as TimelineView;
-			view.setDateFilter(range.startDate, range.endDate);
+			if (leaf.view instanceof TimelineView) {
+				leaf.view.setDateFilter(range.startDate, range.endDate);
+			}
 		}
 
 		return true;
@@ -631,8 +634,9 @@ export default class MomentsPlugin extends Plugin {
 		// the timeline will show an empty state for this note
 		const leaves = this.app.workspace.getLeavesOfType(TIMELINE_VIEW_TYPE);
 		for (const leaf of leaves) {
-			const view = leaf.view as TimelineView;
-			view.setRelatedFilter(file.path);
+			if (leaf.view instanceof TimelineView) {
+				leaf.view.setRelatedFilter(file.path);
+			}
 		}
 	}
 
