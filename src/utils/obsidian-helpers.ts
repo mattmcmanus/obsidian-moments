@@ -5,11 +5,6 @@ import type { App } from 'obsidian';
  * Centralizes all internal API casts to avoid scattering them across the codebase.
  */
 
-/** App with internal commands API. */
-interface AppWithCommands extends App {
-	commands: { executeCommandById: (id: string) => void };
-}
-
 /** App with community plugins API. */
 export interface AppWithPlugins extends App {
 	plugins?: {
@@ -25,13 +20,6 @@ export interface AppWithInternalPlugins extends App {
 			instance?: { options?: Record<string, unknown> };
 		} | undefined;
 	};
-}
-
-/**
- * Execute an Obsidian command by its ID.
- */
-export function executeCommand(app: App, commandId: string): void {
-	(app as AppWithCommands).commands.executeCommandById(commandId);
 }
 
 /**

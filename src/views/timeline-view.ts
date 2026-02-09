@@ -5,7 +5,6 @@ import { TIMELINE_VIEW_TYPE } from '../constants';
 import { formatDate } from '../core/date-parser';
 import { extractContentUnderHeading } from '../core/content-extractor';
 import { debug, debugTimed } from '../utils/debug';
-import { executeCommand } from '../utils/obsidian-helpers';
 import { getPreviousMonth, getDatesForMonth, groupMomentsByDate } from '../core/timeline-helpers';
 
 /**
@@ -565,7 +564,10 @@ export class TimelineView extends ItemView {
 			text: 'Create your first moment',
 		});
 		createBtn.addEventListener('click', () => {
-			executeCommand(this.app, 'moments:create-standalone');
+			const app = this.app as typeof this.app & {
+				commands: { executeCommandById: (id: string) => void };
+			};
+			app.commands.executeCommandById('moments:create-standalone');
 		});
 	}
 
