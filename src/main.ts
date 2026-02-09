@@ -18,6 +18,7 @@ import {
 	isStandaloneMoment,
 	createStandaloneMomentFromFile,
 } from './core/moment-scanner';
+import { parseHeadingForMoment } from './core/heading-parser';
 import { formatDate } from './core/date-parser';
 import {
 	detectPeriodicNoteType,
@@ -333,13 +334,36 @@ export default class MomentsPlugin extends Plugin {
 			}
 		}
 
-		// Scan file content for inline moments
+		// Scan for inline moments using metadataCache (avoids file reads)
 		try {
-			const content = await this.app.vault.cachedRead(file);
-			const moments = scanFileForMoments(content, file.path);
-			for (const moment of moments) {
-				addMomentToCache(this.momentCache, moment);
-				momentsFound++;
+			const fileCache = this.app.metadataCache.getFileCache(file);
+			if (fileCache?.headings) {
+				const now = Date.now();
+				for (const heading of fileCache.headings) {
+					if (heading.level < 2) continue;
+					const headingLine = '#'.repeat(heading.level) + ' ' + heading.heading;
+					const parsed = parseHeadingForMoment(headingLine);
+					if (parsed) {
+						addMomentToCache(this.momentCache, {
+							type: 'inline',
+							date: parsed.date,
+							title: parsed.title,
+							filePath: file.path,
+							headingLevel: parsed.level,
+							headingLine: heading.position.start.line,
+							firstSeen: now,
+						});
+						momentsFound++;
+					}
+				}
+			} else {
+				// Fallback: read file content if metadataCache not available
+				const content = await this.app.vault.cachedRead(file);
+				const moments = scanFileForMoments(content, file.path);
+				for (const moment of moments) {
+					addMomentToCache(this.momentCache, moment);
+					momentsFound++;
+				}
 			}
 		} catch (error) {
 			debug(`Failed to scan file ${file.path}`, error);
