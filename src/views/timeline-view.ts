@@ -38,6 +38,9 @@ export class TimelineView extends ItemView {
 	// Content cache: avoids re-reading files on every render
 	private contentCache: Map<string, string> = new Map();
 
+	// Data fingerprint to skip redundant re-renders
+	private lastRenderFingerprint: string = '';
+
 	constructor(leaf: WorkspaceLeaf, plugin: MomentsPlugin) {
 		super(leaf);
 		this.plugin = plugin;
@@ -179,11 +182,30 @@ export class TimelineView extends ItemView {
 		});
 	}
 
-	async renderTimeline(): Promise<void> {
+	async renderTimeline(force: boolean = false): Promise<void> {
 		if (!this.timelineContentEl) return;
 
 		const done = debugTimed('Timeline render');
 		debug('Rendering timeline', { filter: this.filter });
+
+		// Fetch data before DOM changes to allow fingerprint comparison
+		const moments = this.plugin.getMomentsForDisplay(this.filter);
+
+		let implicitByDate = new Map<string, ImplicitMoment[]>();
+		if (this.plugin.settings.showImplicitMoments) {
+			implicitByDate = await this.plugin.getImplicitMomentsForDisplay(
+				this.filter
+			);
+		}
+
+		// Build a fingerprint from moment data to detect changes
+		const fingerprint = this.computeFingerprint(moments, implicitByDate);
+		if (!force && fingerprint === this.lastRenderFingerprint) {
+			debug('Timeline render skipped - data unchanged');
+			done();
+			return;
+		}
+		this.lastRenderFingerprint = fingerprint;
 
 		this.timelineContentEl.empty();
 
@@ -193,19 +215,10 @@ export class TimelineView extends ItemView {
 		this.hasMoreMonths = true;
 		this.isLoadingMore = false;
 
-		// Get moments from cache
-		this.allMoments = this.plugin.getMomentsForDisplay(this.filter);
-
-		// Group moments by date (stored on instance to avoid recomputation)
+		// Store data on instance for use during pagination
+		this.allMoments = moments;
 		this.groupedByDate = groupMomentsByDate(this.allMoments);
-
-		// Get implicit moments if enabled
-		this.allImplicitByDate = new Map();
-		if (this.plugin.settings.showImplicitMoments) {
-			this.allImplicitByDate = await this.plugin.getImplicitMomentsForDisplay(
-				this.filter
-			);
-		}
+		this.allImplicitByDate = implicitByDate;
 
 		// Get all dates
 		const allDates = new Set([...this.groupedByDate.keys(), ...this.allImplicitByDate.keys()]);
@@ -235,6 +248,28 @@ export class TimelineView extends ItemView {
 		this.addLoadMoreButton();
 
 		done();
+	}
+
+	private computeFingerprint(
+		moments: Moment[],
+		implicitByDate: Map<string, ImplicitMoment[]>
+	): string {
+		// Moments fingerprint: count + key fields of each moment
+		const parts: string[] = [
+			String(moments.length),
+			this.plugin.settings.showImplicitMoments ? '1' : '0',
+			this.filter.startDate ?? '',
+			this.filter.endDate ?? '',
+			this.filter.relatedToFile ?? '',
+		];
+		for (const m of moments) {
+			parts.push(`${m.filePath}:${m.date}:${m.headingLine ?? 's'}`);
+		}
+		// Implicit fingerprint: count per date
+		for (const [date, items] of implicitByDate) {
+			parts.push(`i:${date}:${items.length}`);
+		}
+		return parts.join('|');
 	}
 
 	private getStartMonth(): string {
