@@ -40,6 +40,11 @@ export default class MomentsPlugin extends Plugin {
 	private isScanning: boolean = false;
 	private pendingFileChanges: Set<string> = new Set();
 	private timelineRefreshPending: boolean = false;
+	private implicitMomentsGeneration: number = 0;
+	private implicitMomentsCache: {
+		key: string;
+		result: Map<string, ImplicitMoment[]>;
+	} | null = null;
 
 	// Debounced function to process pending file changes
 	private processPendingChanges = debounce(
@@ -154,6 +159,7 @@ export default class MomentsPlugin extends Plugin {
 					debug('File deleted', { path: file.path });
 					removeMomentsForFile(this.momentCache, file.path);
 					this.invalidateTimelineContentCache(file.path);
+					this.implicitMomentsGeneration++;
 					this.scheduleTimelineRefresh();
 				}
 			})
@@ -246,6 +252,7 @@ export default class MomentsPlugin extends Plugin {
 
 		done();
 		this.logCacheStats();
+		this.implicitMomentsGeneration++;
 
 		// Schedule a single timeline refresh after batch processing
 		this.scheduleTimelineRefresh();
@@ -455,10 +462,22 @@ export default class MomentsPlugin extends Plugin {
 
 	/**
 	 * Get implicit moments (files created/modified without explicit moments).
+	 * Results are cached and invalidated when files change.
 	 */
 	async getImplicitMomentsForDisplay(
 		filter: TimelineFilter
 	): Promise<Map<string, ImplicitMoment[]>> {
+		const cacheKey = [
+			this.implicitMomentsGeneration,
+			filter.startDate ?? '',
+			filter.endDate ?? '',
+			filter.relatedToFile ?? '',
+		].join('|');
+
+		if (this.implicitMomentsCache && this.implicitMomentsCache.key === cacheKey) {
+			return this.implicitMomentsCache.result;
+		}
+
 		const result = new Map<string, ImplicitMoment[]>();
 		const files = this.app.vault.getMarkdownFiles();
 
@@ -517,6 +536,7 @@ export default class MomentsPlugin extends Plugin {
 			implicit.sort((a, b) => b.timestamp - a.timestamp);
 		}
 
+		this.implicitMomentsCache = { key: cacheKey, result };
 		return result;
 	}
 
