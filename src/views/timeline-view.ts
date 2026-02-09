@@ -6,6 +6,7 @@ import { formatDate } from '../core/date-parser';
 import { extractContentUnderHeading } from '../core/content-extractor';
 import { debug, debugTimed } from '../utils/debug';
 import { executeCommand } from '../utils/obsidian-helpers';
+import { getPreviousMonth, getDatesForMonth, groupMomentsByDate } from '../core/timeline-helpers';
 
 /**
  * Timeline view displaying moments grouped by day.
@@ -192,7 +193,7 @@ export class TimelineView extends ItemView {
 		this.allMoments = this.plugin.getMomentsForDisplay(this.filter);
 
 		// Group moments by date
-		const groupedByDate = this.groupMomentsByDate(this.allMoments);
+		const groupedByDate = groupMomentsByDate(this.allMoments);
 
 		// Get implicit moments if enabled
 		this.allImplicitByDate = new Map();
@@ -255,7 +256,7 @@ export class TimelineView extends ItemView {
 
 		// Group by date if not provided
 		if (!groupedByDate) {
-			groupedByDate = this.groupMomentsByDate(this.allMoments);
+			groupedByDate = groupMomentsByDate(this.allMoments);
 		}
 
 		// Track oldest loaded month
@@ -264,12 +265,12 @@ export class TimelineView extends ItemView {
 		}
 
 		// Get all dates for this month
-		const monthDates = this.getDatesForMonth(month, groupedByDate);
+		const monthDates = getDatesForMonth(month, groupedByDate.keys(), this.allImplicitByDate.keys());
 
 		if (monthDates.length === 0) {
 			// No dates in this month, try older months (up to 12 months back on initial load)
 			if (searchDepth < 12) {
-				const prevMonth = this.getPreviousMonth(month);
+				const prevMonth = getPreviousMonth(month);
 				await this.loadMonth(prevMonth, groupedByDate, searchDepth + 1);
 			}
 			return;
@@ -286,29 +287,6 @@ export class TimelineView extends ItemView {
 		}
 	}
 
-	private getPreviousMonth(month: string): string {
-		const parts = month.split('-').map(Number);
-		const year = parts[0] || 2000;
-		const monthNum = parts[1] || 1;
-		let prevYear = year;
-		let prevMonth = monthNum - 1;
-
-		if (prevMonth < 1) {
-			prevMonth = 12;
-			prevYear--;
-		}
-
-		return `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
-	}
-
-	private getDatesForMonth(
-		month: string,
-		groupedByDate: Map<string, Moment[]>
-	): string[] {
-		const allDates = new Set([...groupedByDate.keys(), ...this.allImplicitByDate.keys()]);
-		return Array.from(allDates).filter((date) => date.startsWith(month));
-	}
-
 	private async loadOlderMonth(groupedByDate?: Map<string, Moment[]>): Promise<void> {
 		if (this.isLoadingMore || !this.hasMoreMonths || !this.oldestLoadedMonth) {
 			return;
@@ -317,11 +295,11 @@ export class TimelineView extends ItemView {
 		this.isLoadingMore = true;
 
 		// Calculate previous month
-		const prevMonthStr = this.getPreviousMonth(this.oldestLoadedMonth);
+		const prevMonthStr = getPreviousMonth(this.oldestLoadedMonth);
 
 		// Check if there are any dates older than our oldest loaded month
 		if (!groupedByDate) {
-			groupedByDate = this.groupMomentsByDate(this.allMoments);
+			groupedByDate = groupMomentsByDate(this.allMoments);
 		}
 
 		const allDates = new Set([...groupedByDate.keys(), ...this.allImplicitByDate.keys()]);
@@ -401,24 +379,6 @@ export class TimelineView extends ItemView {
 		if (btn) {
 			btn.remove();
 		}
-	}
-
-	private groupMomentsByDate(moments: Moment[]): Map<string, Moment[]> {
-		const grouped = new Map<string, Moment[]>();
-
-		for (const moment of moments) {
-			if (!grouped.has(moment.date)) {
-				grouped.set(moment.date, []);
-			}
-			grouped.get(moment.date)!.push(moment);
-		}
-
-		// Sort moments within each day by firstSeen (newest first)
-		for (const [, dateMoments] of grouped) {
-			dateMoments.sort((a, b) => b.firstSeen - a.firstSeen);
-		}
-
-		return grouped;
 	}
 
 	private async renderDaySection(
