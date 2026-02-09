@@ -32,6 +32,7 @@ export class TimelineView extends ItemView {
 	private isLoadingMore: boolean = false;
 	private hasMoreMonths: boolean = true;
 	private allMoments: Moment[] = [];
+	private groupedByDate: Map<string, Moment[]> = new Map();
 	private allImplicitByDate: Map<string, ImplicitMoment[]> = new Map();
 
 	// Content cache: avoids re-reading files on every render
@@ -195,8 +196,8 @@ export class TimelineView extends ItemView {
 		// Get moments from cache
 		this.allMoments = this.plugin.getMomentsForDisplay(this.filter);
 
-		// Group moments by date
-		const groupedByDate = groupMomentsByDate(this.allMoments);
+		// Group moments by date (stored on instance to avoid recomputation)
+		this.groupedByDate = groupMomentsByDate(this.allMoments);
 
 		// Get implicit moments if enabled
 		this.allImplicitByDate = new Map();
@@ -207,7 +208,7 @@ export class TimelineView extends ItemView {
 		}
 
 		// Get all dates
-		const allDates = new Set([...groupedByDate.keys(), ...this.allImplicitByDate.keys()]);
+		const allDates = new Set([...this.groupedByDate.keys(), ...this.allImplicitByDate.keys()]);
 
 		debug('Timeline data loaded', {
 			explicitMoments: this.allMoments.length,
@@ -225,7 +226,7 @@ export class TimelineView extends ItemView {
 		const startMonth = this.getStartMonth();
 
 		// Load initial month
-		await this.loadMonth(startMonth, groupedByDate);
+		await this.loadMonth(startMonth);
 
 		// Add scroll listener for infinite loading
 		this.setupScrollListener();
@@ -248,7 +249,6 @@ export class TimelineView extends ItemView {
 
 	private async loadMonth(
 		month: string,
-		groupedByDate?: Map<string, Moment[]>,
 		searchDepth: number = 0
 	): Promise<void> {
 		if (this.loadedMonths.has(month)) {
@@ -257,24 +257,19 @@ export class TimelineView extends ItemView {
 
 		this.loadedMonths.add(month);
 
-		// Group by date if not provided
-		if (!groupedByDate) {
-			groupedByDate = groupMomentsByDate(this.allMoments);
-		}
-
 		// Track oldest loaded month
 		if (!this.oldestLoadedMonth || month < this.oldestLoadedMonth) {
 			this.oldestLoadedMonth = month;
 		}
 
 		// Get all dates for this month
-		const monthDates = getDatesForMonth(month, groupedByDate.keys(), this.allImplicitByDate.keys());
+		const monthDates = getDatesForMonth(month, this.groupedByDate.keys(), this.allImplicitByDate.keys());
 
 		if (monthDates.length === 0) {
 			// No dates in this month, try older months (up to 12 months back on initial load)
 			if (searchDepth < 12) {
 				const prevMonth = getPreviousMonth(month);
-				await this.loadMonth(prevMonth, groupedByDate, searchDepth + 1);
+				await this.loadMonth(prevMonth, searchDepth + 1);
 			}
 			return;
 		}
@@ -283,14 +278,14 @@ export class TimelineView extends ItemView {
 		monthDates.sort((a, b) => b.localeCompare(a));
 
 		for (const date of monthDates) {
-			const dayMoments = groupedByDate.get(date) || [];
+			const dayMoments = this.groupedByDate.get(date) || [];
 			const dayImplicit = this.allImplicitByDate.get(date) || [];
 
 			await this.renderDaySection(date, dayMoments, dayImplicit);
 		}
 	}
 
-	private async loadOlderMonth(groupedByDate?: Map<string, Moment[]>): Promise<void> {
+	private async loadOlderMonth(): Promise<void> {
 		if (this.isLoadingMore || !this.hasMoreMonths || !this.oldestLoadedMonth) {
 			return;
 		}
@@ -301,11 +296,7 @@ export class TimelineView extends ItemView {
 		const prevMonthStr = getPreviousMonth(this.oldestLoadedMonth);
 
 		// Check if there are any dates older than our oldest loaded month
-		if (!groupedByDate) {
-			groupedByDate = groupMomentsByDate(this.allMoments);
-		}
-
-		const allDates = new Set([...groupedByDate.keys(), ...this.allImplicitByDate.keys()]);
+		const allDates = new Set([...this.groupedByDate.keys(), ...this.allImplicitByDate.keys()]);
 		const hasOlderDates = Array.from(allDates).some((date) => date < this.oldestLoadedMonth!);
 
 		if (!hasOlderDates) {
@@ -316,7 +307,7 @@ export class TimelineView extends ItemView {
 		}
 
 		// Load the previous month (which may recursively load more if empty)
-		await this.loadMonth(prevMonthStr, groupedByDate, 0);
+		await this.loadMonth(prevMonthStr, 0);
 
 		this.isLoadingMore = false;
 
