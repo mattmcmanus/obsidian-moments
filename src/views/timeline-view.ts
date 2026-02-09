@@ -340,7 +340,7 @@ export class TimelineView extends ItemView {
 			}
 		};
 
-		this.timelineContentEl.addEventListener('scroll', this.scrollHandler);
+		this.timelineContentEl.addEventListener('scroll', this.scrollHandler, { passive: true });
 	}
 
 	private removeScrollListener(): void {
