@@ -186,7 +186,7 @@ function hasMatchingLinkInRange(
 	const links = cache.links ?? [];
 	for (const link of links) {
 		const line = link.position.start.line;
-		if (line > startLine && line < endLine) {
+		if (line >= startLine && line < endLine) {
 			if (isLinkToTarget(link.link, relationInfo, app, sourcePath)) {
 				return true;
 			}
@@ -196,7 +196,7 @@ function hasMatchingLinkInRange(
 	const embeds = cache.embeds ?? [];
 	for (const embed of embeds) {
 		const line = embed.position.start.line;
-		if (line > startLine && line < endLine) {
+		if (line >= startLine && line < endLine) {
 			if (isLinkToTarget(embed.link, relationInfo, app, sourcePath)) {
 				return true;
 			}
@@ -263,7 +263,7 @@ function hasMatchingTagInRange(
 
 	for (const tagCache of tags) {
 		const line = tagCache.position.start.line;
-		if (line > startLine && line < endLine) {
+		if (line >= startLine && line < endLine) {
 			const tagName = tagCache.tag.slice(1).toLowerCase();
 			if (tagName === basenameTag || relationInfo.aliases.includes(tagName)) {
 				return true;

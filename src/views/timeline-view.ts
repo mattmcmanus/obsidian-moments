@@ -471,10 +471,16 @@ export class TimelineView extends ItemView {
 		const cardHeader = card.createEl('div', { cls: 'moments-card-header' });
 
 		if (moment.title) {
-			cardHeader.createEl('span', {
+			const titleEl = cardHeader.createEl('span', {
 				cls: 'moments-card-title',
-				text: moment.title,
 			});
+			await MarkdownRenderer.render(
+				this.app,
+				moment.title,
+				titleEl,
+				moment.filePath,
+				this
+			);
 		}
 
 		// Source file indicator
