@@ -289,6 +289,45 @@ describe('isMomentRelatedToFile', () => {
 		expect(isMomentRelatedToFile(app, moment, info)).toBe(true);
 	});
 
+	it('detects wikilink to person in moment heading with date link', () => {
+		// Scenario: "### [[2026-01-15]] Meeting with [[Steve Cummings]]"
+		// metadataCache strips brackets: heading = "2026-01-15 Meeting with Steve Cummings"
+		// Both [[2026-01-15]] and [[Steve Cummings]] should be in cache.links on the heading line
+		const targetFile = mockFile('People/Steve Cummings.md', 'Steve Cummings');
+		const momentFile = mockFile('Projects/Disability Insurance.md', 'Disability Insurance');
+
+		const app = mockApp(
+			{
+				'Projects/Disability Insurance.md': {
+					headings: [
+						mockHeading(10, 2, 'Notes'),
+						mockHeading(12, 3, '2026-01-15 Meeting with Steve Cummings'),
+						mockHeading(25, 3, '2026-01-20 Follow up'),
+					],
+					links: [
+						mockLink(12, '2026-01-15'),
+						mockLink(12, 'Steve Cummings'),
+						mockLink(25, '2026-01-20'),
+					],
+					sections: [{ position: { start: { line: 0, col: 0, offset: 0 }, end: { line: 40, col: 0, offset: 0 } } }],
+				} as unknown as CachedMetadata,
+				'People/Steve Cummings.md': {},
+			},
+			[targetFile, momentFile]
+		);
+
+		const moment = createTestMoment({
+			filePath: 'Projects/Disability Insurance.md',
+			headingLine: 12,
+			headingLevel: 3,
+			title: 'Meeting with Steve Cummings',
+			date: '2026-01-15',
+		});
+		const info = getFileRelationInfo(app, targetFile);
+
+		expect(isMomentRelatedToFile(app, moment, info)).toBe(true);
+	});
+
 	it('detects tag on the heading line itself', () => {
 		const targetFile = mockFile('Projects.md', 'Projects');
 		const momentFile = mockFile('notes.md', 'notes');
@@ -446,6 +485,116 @@ describe('isMomentRelatedToFile', () => {
 		const info = getFileRelationInfo(app, targetFile);
 
 		expect(isMomentRelatedToFile(app, moment, info)).toBe(false);
+	});
+
+	it('detects wikilink in heading via fallback when not in cache.links', () => {
+		// Obsidian may not include heading-embedded wikilinks in cache.links.
+		// The fallback checks heading text + resolvedLinks.
+		const targetFile = mockFile('People/Steve Cummings.md', 'Steve Cummings');
+		const momentFile = mockFile('Projects/Disability Insurance.md', 'Disability Insurance');
+
+		const app = mockApp(
+			{
+				'Projects/Disability Insurance.md': {
+					headings: [
+						mockHeading(10, 2, 'Notes'),
+						mockHeading(12, 3, '2026-01-15 Meeting with Steve Cummings'),
+						mockHeading(25, 3, '2026-01-20 Follow up'),
+					],
+					// Only the date link appears in cache.links — Steve Cummings link is NOT here
+					links: [
+						mockLink(12, '2026-01-15'),
+						mockLink(25, '2026-01-20'),
+					],
+					sections: [{ position: { start: { line: 0, col: 0, offset: 0 }, end: { line: 40, col: 0, offset: 0 } } }],
+				} as unknown as CachedMetadata,
+				'People/Steve Cummings.md': {},
+			},
+			[targetFile, momentFile],
+			// resolvedLinks confirms the file DOES link to Steve
+			{
+				'Projects/Disability Insurance.md': { 'People/Steve Cummings.md': 1 },
+			}
+		);
+
+		const moment = createTestMoment({
+			filePath: 'Projects/Disability Insurance.md',
+			headingLine: 12,
+			headingLevel: 3,
+			title: 'Meeting with Steve Cummings',
+			date: '2026-01-15',
+		});
+		const info = getFileRelationInfo(app, targetFile);
+
+		expect(isMomentRelatedToFile(app, moment, info)).toBe(true);
+	});
+
+	it('heading text fallback requires resolved link to target', () => {
+		// If heading text mentions the target but there's no resolved link, don't match
+		const targetFile = mockFile('People/Steve Cummings.md', 'Steve Cummings');
+		const momentFile = mockFile('notes.md', 'notes');
+
+		const app = mockApp(
+			{
+				'notes.md': {
+					headings: [
+						mockHeading(5, 3, '2026-01-15 Meeting with Steve Cummings'),
+						mockHeading(20, 3, '2026-01-20 Follow up'),
+					],
+					links: [mockLink(5, '2026-01-15')],
+					sections: [{ position: { start: { line: 0, col: 0, offset: 0 }, end: { line: 30, col: 0, offset: 0 } } }],
+				} as unknown as CachedMetadata,
+				'People/Steve Cummings.md': {},
+			},
+			[targetFile, momentFile],
+			// No resolved links
+			{}
+		);
+
+		const moment = createTestMoment({
+			filePath: 'notes.md',
+			headingLine: 5,
+			headingLevel: 3,
+			title: 'Meeting with Steve Cummings',
+			date: '2026-01-15',
+		});
+		const info = getFileRelationInfo(app, targetFile);
+
+		expect(isMomentRelatedToFile(app, moment, info)).toBe(false);
+	});
+
+	it('heading text fallback matches alias', () => {
+		const targetFile = mockFile('People/Steve Cummings.md', 'Steve Cummings');
+		const momentFile = mockFile('notes.md', 'notes');
+
+		const app = mockApp(
+			{
+				'notes.md': {
+					headings: [
+						mockHeading(5, 3, '2026-01-15 Call with Steve'),
+						mockHeading(20, 3),
+					],
+					links: [mockLink(5, '2026-01-15')],
+					sections: [{ position: { start: { line: 0, col: 0, offset: 0 }, end: { line: 30, col: 0, offset: 0 } } }],
+				} as unknown as CachedMetadata,
+				'People/Steve Cummings.md': {
+					frontmatter: { aliases: ['Steve'] } as CachedMetadata['frontmatter'],
+				},
+			},
+			[targetFile, momentFile],
+			{
+				'notes.md': { 'People/Steve Cummings.md': 1 },
+			}
+		);
+
+		const moment = createTestMoment({
+			filePath: 'notes.md',
+			headingLine: 5,
+			headingLevel: 3,
+		});
+		const info = getFileRelationInfo(app, targetFile);
+
+		expect(isMomentRelatedToFile(app, moment, info)).toBe(true);
 	});
 
 	it('detects embed link to target file', () => {
