@@ -76,11 +76,6 @@ export function isMomentRelatedToFile(
 	moment: Moment,
 	relationInfo: FileRelationInfo
 ): boolean {
-	// Check if the moment's title mentions the target file's basename or aliases
-	if (moment.title && hasTitleMention(moment.title, relationInfo)) {
-		return true;
-	}
-
 	const cache = app.metadataCache.getCache(moment.filePath);
 	if (!cache) return false;
 
@@ -273,26 +268,6 @@ function hasMatchingTagInRange(
 			if (tagName === basenameTag || relationInfo.aliases.includes(tagName)) {
 				return true;
 			}
-		}
-	}
-
-	return false;
-}
-
-/**
- * Check if a moment's title text mentions the target file's basename or aliases.
- */
-export function hasTitleMention(
-	title: string,
-	relationInfo: FileRelationInfo
-): boolean {
-	const lowerTitle = title.toLowerCase();
-	const names = [relationInfo.basename, ...relationInfo.aliases];
-
-	for (const name of names) {
-		if (!name) continue;
-		if (lowerTitle.includes(name.toLowerCase())) {
-			return true;
 		}
 	}
 
