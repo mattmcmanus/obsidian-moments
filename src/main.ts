@@ -25,6 +25,7 @@ import {
 } from './core/periodic-detection';
 import { findRelatedMoments, isFileRelatedByLinks } from './core/related-detection';
 import { setDebugMode, debug, debugTimed, debugCacheStats } from './utils/debug';
+import { executeCommand } from './utils/obsidian-helpers';
 
 /**
  * Moments plugin for Obsidian
@@ -99,7 +100,7 @@ export default class MomentsPlugin extends Plugin {
 					.setTitle('Insert moment in current file')
 					.setIcon('plus')
 					.onClick(() => {
-						this.executeCommand('moments:add-inline');
+						executeCommand(this.app, 'moments:add-inline');
 					})
 			);
 
@@ -108,7 +109,7 @@ export default class MomentsPlugin extends Plugin {
 					.setTitle('Create new moment note')
 					.setIcon('file-plus')
 					.onClick(() => {
-						this.executeCommand('moments:create-standalone');
+						executeCommand(this.app, 'moments:create-standalone');
 					})
 			);
 
@@ -184,16 +185,6 @@ export default class MomentsPlugin extends Plugin {
 				}
 			});
 		});
-	}
-
-	/**
-	 * Execute a command by ID.
-	 */
-	private executeCommand(commandId: string): void {
-		const app = this.app as typeof this.app & {
-			commands: { executeCommandById: (id: string) => void };
-		};
-		app.commands.executeCommandById(commandId);
 	}
 
 	onunload() {

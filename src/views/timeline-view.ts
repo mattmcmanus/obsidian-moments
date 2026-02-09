@@ -5,6 +5,7 @@ import { TIMELINE_VIEW_TYPE } from '../constants';
 import { formatDate } from '../core/date-parser';
 import { extractContentUnderHeading } from '../core/content-extractor';
 import { debug, debugTimed } from '../utils/debug';
+import { executeCommand } from '../utils/obsidian-helpers';
 
 /**
  * Timeline view displaying moments grouped by day.
@@ -605,18 +606,8 @@ export class TimelineView extends ItemView {
 			text: 'Create your first moment',
 		});
 		createBtn.addEventListener('click', () => {
-			this.executeCommand('moments:create-standalone');
+			executeCommand(this.app, 'moments:create-standalone');
 		});
-	}
-
-	/**
-	 * Execute a command by ID.
-	 */
-	private executeCommand(commandId: string): void {
-		const app = this.app as typeof this.app & {
-			commands: { executeCommandById: (id: string) => void };
-		};
-		app.commands.executeCommandById(commandId);
 	}
 
 	private async openMoment(moment: Moment): Promise<void> {
