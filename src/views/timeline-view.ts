@@ -41,6 +41,10 @@ export class TimelineView extends ItemView {
 	// Data fingerprint to skip redundant re-renders
 	private lastRenderFingerprint: string = '';
 
+	// Lazy rendering: defer MarkdownRenderer until cards are visible
+	private cardObserver: IntersectionObserver | null = null;
+	private pendingCardRenders: Map<HTMLElement, Moment> = new Map();
+
 	constructor(leaf: WorkspaceLeaf, plugin: MomentsPlugin) {
 		super(leaf);
 		this.plugin = plugin;
@@ -78,6 +82,7 @@ export class TimelineView extends ItemView {
 
 	async onClose(): Promise<void> {
 		this.removeScrollListener();
+		this.destroyCardObserver();
 		this.contentCache.clear();
 	}
 
@@ -207,6 +212,8 @@ export class TimelineView extends ItemView {
 		}
 		this.lastRenderFingerprint = fingerprint;
 
+		// Tear down previous render state
+		this.destroyCardObserver();
 		this.timelineContentEl.empty();
 
 		// Reset pagination state
@@ -235,11 +242,14 @@ export class TimelineView extends ItemView {
 			return;
 		}
 
+		// Set up lazy rendering observer
+		this.setupCardObserver();
+
 		// Determine which month to start with
 		const startMonth = this.getStartMonth();
 
 		// Load initial month
-		await this.loadMonth(startMonth);
+		this.loadMonth(startMonth);
 
 		// Add scroll listener for infinite loading
 		this.setupScrollListener();
@@ -282,10 +292,10 @@ export class TimelineView extends ItemView {
 		return formatDate(new Date()).substring(0, 7);
 	}
 
-	private async loadMonth(
+	private loadMonth(
 		month: string,
 		searchDepth: number = 0
-	): Promise<void> {
+	): void {
 		if (this.loadedMonths.has(month)) {
 			return;
 		}
@@ -304,7 +314,7 @@ export class TimelineView extends ItemView {
 			// No dates in this month, try older months (up to 12 months back on initial load)
 			if (searchDepth < 12) {
 				const prevMonth = getPreviousMonth(month);
-				await this.loadMonth(prevMonth, searchDepth + 1);
+				this.loadMonth(prevMonth, searchDepth + 1);
 			}
 			return;
 		}
@@ -316,11 +326,11 @@ export class TimelineView extends ItemView {
 			const dayMoments = this.groupedByDate.get(date) || [];
 			const dayImplicit = this.allImplicitByDate.get(date) || [];
 
-			await this.renderDaySection(date, dayMoments, dayImplicit);
+			this.renderDaySection(date, dayMoments, dayImplicit);
 		}
 	}
 
-	private async loadOlderMonth(): Promise<void> {
+	private loadOlderMonth(): void {
 		if (this.isLoadingMore || !this.hasMoreMonths || !this.oldestLoadedMonth) {
 			return;
 		}
@@ -342,7 +352,7 @@ export class TimelineView extends ItemView {
 		}
 
 		// Load the previous month (which may recursively load more if empty)
-		await this.loadMonth(prevMonthStr, 0);
+		this.loadMonth(prevMonthStr, 0);
 
 		this.isLoadingMore = false;
 
@@ -364,7 +374,7 @@ export class TimelineView extends ItemView {
 				const { scrollTop, scrollHeight, clientHeight } = this.timelineContentEl;
 				const scrolledToBottom = scrollTop + clientHeight >= scrollHeight - 100;
 				if (scrolledToBottom) {
-					void this.loadOlderMonth();
+					this.loadOlderMonth();
 				}
 			});
 		};
@@ -377,6 +387,33 @@ export class TimelineView extends ItemView {
 			this.timelineContentEl?.removeEventListener('scroll', this.scrollHandler);
 			this.scrollHandler = null;
 		}
+	}
+
+	private setupCardObserver(): void {
+		this.pendingCardRenders.clear();
+		this.cardObserver = new IntersectionObserver(
+			(entries) => {
+				for (const entry of entries) {
+					if (!entry.isIntersecting) continue;
+					const card = entry.target as HTMLElement;
+					const moment = this.pendingCardRenders.get(card);
+					if (moment) {
+						this.pendingCardRenders.delete(card);
+						this.cardObserver?.unobserve(card);
+						void this.renderCardContent(card, moment);
+					}
+				}
+			},
+			{ root: this.timelineContentEl, rootMargin: '200px 0px' }
+		);
+	}
+
+	private destroyCardObserver(): void {
+		if (this.cardObserver) {
+			this.cardObserver.disconnect();
+			this.cardObserver = null;
+		}
+		this.pendingCardRenders.clear();
 	}
 
 	private addLoadMoreButton(): void {
@@ -395,7 +432,7 @@ export class TimelineView extends ItemView {
 		});
 
 		loadMoreBtn.addEventListener('click', () => {
-			void this.loadOlderMonth();
+			this.loadOlderMonth();
 		});
 	}
 
@@ -413,11 +450,11 @@ export class TimelineView extends ItemView {
 		}
 	}
 
-	private async renderDaySection(
+	private renderDaySection(
 		date: string,
 		moments: Moment[],
 		implicitMoments: ImplicitMoment[]
-	): Promise<void> {
+	): void {
 		const section = this.timelineContentEl.createEl('div', { cls: 'moments-day-section' });
 
 		// Day header
@@ -455,9 +492,9 @@ export class TimelineView extends ItemView {
 			menu.showAtMouseEvent(e);
 		});
 
-		// Render primary moments
+		// Create card shells (content rendered lazily via IntersectionObserver)
 		for (const moment of moments) {
-			await this.renderMomentCard(content, moment);
+			this.createMomentCardShell(content, moment);
 		}
 
 		// Render implicit moments
@@ -466,23 +503,21 @@ export class TimelineView extends ItemView {
 		}
 	}
 
-	private async renderMomentCard(container: HTMLElement, moment: Moment): Promise<void> {
+	/**
+	 * Create the DOM shell for a moment card. Markdown content is deferred
+	 * until the card scrolls into view (via IntersectionObserver).
+	 */
+	private createMomentCardShell(container: HTMLElement, moment: Moment): void {
 		const card = container.createEl('div', { cls: 'moments-card' });
 
-		// Card header with title
+		// Card header with title (plain text initially)
 		const cardHeader = card.createEl('div', { cls: 'moments-card-header' });
 
 		if (moment.title) {
-			const titleEl = cardHeader.createEl('span', {
+			cardHeader.createEl('span', {
 				cls: 'moments-card-title',
+				text: moment.title,
 			});
-			await MarkdownRenderer.render(
-				this.app,
-				moment.title,
-				titleEl,
-				moment.filePath,
-				this
-			);
 		}
 
 		// Source file indicator
@@ -501,38 +536,63 @@ export class TimelineView extends ItemView {
 			});
 		}
 
-		// Card content
-		const cardContent = card.createEl('div', { cls: 'moments-card-content' });
+		// Placeholder content area (filled when visible)
+		card.createEl('div', { cls: 'moments-card-content' });
 
-		// Load and render content
+		// Click card to open moment
+		card.addEventListener('click', () => {
+			void this.openMoment(moment);
+		});
+
+		// Register for lazy rendering
+		this.pendingCardRenders.set(card, moment);
+		this.cardObserver?.observe(card);
+	}
+
+	/**
+	 * Render the full markdown content for a card that has scrolled into view.
+	 */
+	private async renderCardContent(card: HTMLElement, moment: Moment): Promise<void> {
+		// Render title as markdown (replacing the plain text)
+		const titleEl = card.querySelector('.moments-card-title');
+		if (titleEl && moment.title) {
+			titleEl.textContent = '';
+			await MarkdownRenderer.render(
+				this.app,
+				moment.title,
+				titleEl as HTMLElement,
+				moment.filePath,
+				this
+			);
+		}
+
+		// Render body content
+		const cardContent = card.querySelector('.moments-card-content');
+		if (!cardContent) return;
+
 		try {
 			const content = await this.getMomentContent(moment);
 			if (content) {
 				await MarkdownRenderer.render(
 					this.app,
 					content,
-					cardContent,
+					cardContent as HTMLElement,
 					moment.filePath,
 					this
 				);
 			} else {
-				cardContent.createEl('em', {
+				(cardContent as HTMLElement).createEl('em', {
 					cls: 'moments-card-empty',
 					text: 'No content',
 				});
 			}
 		} catch (error) {
 			debug('Failed to render moment content', { filePath: moment.filePath, error });
-			cardContent.createEl('em', {
+			(cardContent as HTMLElement).createEl('em', {
 				cls: 'moments-card-error',
 				text: 'Failed to load content',
 			});
 		}
-
-		// Click card to open moment
-		card.addEventListener('click', () => {
-			void this.openMoment(moment);
-		});
 	}
 
 	private contentCacheKey(moment: Moment): string {
