@@ -34,6 +34,9 @@ export class TimelineView extends ItemView {
 	private allMoments: Moment[] = [];
 	private allImplicitByDate: Map<string, ImplicitMoment[]> = new Map();
 
+	// Content cache: avoids re-reading files on every render
+	private contentCache: Map<string, string> = new Map();
+
 	constructor(leaf: WorkspaceLeaf, plugin: MomentsPlugin) {
 		super(leaf);
 		this.plugin = plugin;
@@ -71,6 +74,7 @@ export class TimelineView extends ItemView {
 
 	async onClose(): Promise<void> {
 		this.removeScrollListener();
+		this.contentCache.clear();
 	}
 
 	private createHeader(header: HTMLElement): void {
@@ -502,29 +506,47 @@ export class TimelineView extends ItemView {
 		});
 	}
 
+	private contentCacheKey(moment: Moment): string {
+		return moment.type === 'standalone'
+			? `${moment.filePath}:standalone`
+			: `${moment.filePath}:${moment.headingLine}`;
+	}
+
 	private async getMomentContent(moment: Moment): Promise<string> {
+		const cacheKey = this.contentCacheKey(moment);
+		const cached = this.contentCache.get(cacheKey);
+		if (cached !== undefined) {
+			return cached;
+		}
+
 		const file = this.app.vault.getAbstractFileByPath(moment.filePath);
 		if (!(file instanceof TFile)) {
 			return '';
 		}
 
 		const fileContent = await this.app.vault.cachedRead(file);
+		let content = '';
 
 		if (moment.type === 'standalone') {
-			// Return full file content
-			return fileContent;
-		}
-
-		// Extract content under the heading
-		if (moment.headingLine !== undefined && moment.headingLevel !== undefined) {
-			return extractContentUnderHeading(
+			content = fileContent;
+		} else if (moment.headingLine !== undefined && moment.headingLevel !== undefined) {
+			content = extractContentUnderHeading(
 				fileContent,
 				moment.headingLine,
 				moment.headingLevel
 			);
 		}
 
-		return '';
+		this.contentCache.set(cacheKey, content);
+		return content;
+	}
+
+	invalidateContentCache(filePath: string): void {
+		for (const key of this.contentCache.keys()) {
+			if (key.startsWith(filePath + ':')) {
+				this.contentCache.delete(key);
+			}
+		}
 	}
 
 	private renderImplicitMoment(container: HTMLElement, implicit: ImplicitMoment): void {

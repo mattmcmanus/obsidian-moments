@@ -153,6 +153,7 @@ export default class MomentsPlugin extends Plugin {
 				if (file instanceof TFile && file.extension === 'md') {
 					debug('File deleted', { path: file.path });
 					removeMomentsForFile(this.momentCache, file.path);
+					this.invalidateTimelineContentCache(file.path);
 					this.scheduleTimelineRefresh();
 				}
 			})
@@ -239,6 +240,8 @@ export default class MomentsPlugin extends Plugin {
 				// Re-scan the file
 				await this.scanFile(file);
 			}
+			// Invalidate content cache for changed files
+			this.invalidateTimelineContentCache(filePath);
 		}
 
 		done();
@@ -273,6 +276,17 @@ export default class MomentsPlugin extends Plugin {
 		for (const leaf of leaves) {
 			const view = leaf.view as TimelineView;
 			view.refresh();
+		}
+	}
+
+	/**
+	 * Invalidate timeline content cache for a specific file.
+	 */
+	private invalidateTimelineContentCache(filePath: string): void {
+		const leaves = this.app.workspace.getLeavesOfType(TIMELINE_VIEW_TYPE);
+		for (const leaf of leaves) {
+			const view = leaf.view as TimelineView;
+			view.invalidateContentCache(filePath);
 		}
 	}
 
