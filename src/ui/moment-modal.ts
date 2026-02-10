@@ -1,5 +1,6 @@
 import { App, Modal, Setting, Notice } from 'obsidian';
-import { getTodayString, isValidDateString } from '../core/date-parser';
+import { formatDate, parseDate, DEFAULT_DATE_FORMAT } from '../core/date-parser';
+import { NoteLinkSuggest } from './note-link-suggest';
 
 /**
  * Result from the moment modal
@@ -32,7 +33,7 @@ export class MomentModal extends Modal {
 		this.modalTitle = options.title;
 		this.dateFormat = options.dateFormat;
 		this.onSubmit = options.onSubmit;
-		this.dateText = getTodayString(this.dateFormat);
+		this.dateText = formatDate(new Date(), this.dateFormat);
 	}
 
 	onOpen() {
@@ -40,8 +41,26 @@ export class MomentModal extends Modal {
 
 		this.titleEl.setText(this.modalTitle);
 
-		// Title input
+		// Date input — native date picker
 		new Setting(contentEl)
+			.setName('Date')
+			.addText((text) => {
+				text.inputEl.type = 'date';
+				// HTML date inputs use ISO format internally
+				text.inputEl.value = formatDate(new Date(), DEFAULT_DATE_FORMAT);
+				// Listen on the input element directly — date pickers fire
+				// 'change' events, not 'input' events that TextComponent uses
+				text.inputEl.addEventListener('change', () => {
+					const isoValue = text.inputEl.value;
+					const parsed = parseDate(isoValue, DEFAULT_DATE_FORMAT);
+					if (parsed) {
+						this.dateText = formatDate(parsed, this.dateFormat);
+					}
+				});
+			});
+
+		// Title input — full width with [[ link suggestions
+		const titleSetting = new Setting(contentEl)
 			.setName('Title')
 			.setDesc('What is this moment about?')
 			.addText((text) => {
@@ -51,22 +70,11 @@ export class MomentModal extends Modal {
 					.onChange((value) => {
 						this.titleText = value;
 					});
-				// Focus the title input
+				new NoteLinkSuggest(this.app, text.inputEl);
+				// Focus the title input — date is pre-filled
 				setTimeout(() => text.inputEl.focus(), 10);
 			});
-
-		// Date input
-		new Setting(contentEl)
-			.setName('Date')
-			.setDesc(`Format: ${this.dateFormat}`)
-			.addText((text) =>
-				text
-					.setPlaceholder(this.dateFormat)
-					.setValue(this.dateText)
-					.onChange((value) => {
-						this.dateText = value;
-					})
-			);
+		titleSetting.settingEl.addClass('moments-modal-title-setting');
 
 		// Buttons
 		new Setting(contentEl)
@@ -95,7 +103,7 @@ export class MomentModal extends Modal {
 
 	private submit(): void {
 		// Validate date
-		if (!isValidDateString(this.dateText, this.dateFormat)) {
+		if (!parseDate(this.dateText, this.dateFormat)) {
 			new Notice(`Invalid date format. Expected: ${this.dateFormat}`);
 			return;
 		}

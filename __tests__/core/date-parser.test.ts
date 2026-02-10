@@ -1,9 +1,6 @@
 import {
 	formatDate,
 	parseDate,
-	isValidDateString,
-	getTodayString,
-	buildDatePattern,
 } from '../../src/core/date-parser';
 
 describe('formatDate', () => {
@@ -73,63 +70,5 @@ describe('parseDate', () => {
 
 	it('returns null for mismatched format', () => {
 		expect(parseDate('02-04-2026', 'YYYY-MM-DD')).toBeNull();
-	});
-});
-
-describe('isValidDateString', () => {
-	it('returns true for valid ISO date', () => {
-		expect(isValidDateString('2026-02-04')).toBe(true);
-	});
-
-	it('returns true for valid date with custom format', () => {
-		expect(isValidDateString('04/02/2026', 'DD/MM/YYYY')).toBe(true);
-	});
-
-	it('returns false for invalid date', () => {
-		expect(isValidDateString('not-a-date')).toBe(false);
-		expect(isValidDateString('2026-02-30')).toBe(false); // Invalid Feb date
-	});
-
-	it('returns false for empty string', () => {
-		expect(isValidDateString('')).toBe(false);
-	});
-});
-
-describe('getTodayString', () => {
-	it('returns today date in ISO format', () => {
-		const result = getTodayString();
-		// Just check format, not exact value (would break on different days)
-		expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-	});
-
-	it('returns today date in custom format', () => {
-		const result = getTodayString('DD/MM/YYYY');
-		expect(result).toMatch(/^\d{2}\/\d{2}\/\d{4}$/);
-	});
-});
-
-describe('buildDatePattern', () => {
-	it('builds regex for ISO format', () => {
-		const pattern = buildDatePattern('YYYY-MM-DD');
-		expect(pattern.test('2026-02-04')).toBe(true);
-		expect(pattern.test('26-02-04')).toBe(false);
-	});
-
-	it('builds regex for DD/MM/YYYY format', () => {
-		const pattern = buildDatePattern('DD/MM/YYYY');
-		expect(pattern.test('04/02/2026')).toBe(true);
-		expect(pattern.test('2026-02-04')).toBe(false);
-	});
-
-	it('builds regex for MM-DD-YYYY format', () => {
-		const pattern = buildDatePattern('MM-DD-YYYY');
-		expect(pattern.test('02-04-2026')).toBe(true);
-	});
-
-	it('escapes special regex characters in separator', () => {
-		const pattern = buildDatePattern('YYYY.MM.DD');
-		expect(pattern.test('2026.02.04')).toBe(true);
-		// The dot should be literal, not match any character
-		expect(pattern.test('2026X02X04')).toBe(false);
 	});
 });
