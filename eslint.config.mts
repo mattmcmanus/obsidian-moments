@@ -26,6 +26,15 @@ export default tseslint.config(
 		},
 	},
 	...obsidianmd.configs.recommended,
+	{
+		files: ["src/**/*.ts"],
+		plugins: {
+			"@typescript-eslint": tseslint.plugin,
+		},
+		rules: {
+			"@typescript-eslint/require-await": "error",
+		},
+	},
 	globalIgnores([
 		"node_modules",
 		"dist",

@@ -62,9 +62,9 @@ export class TimelineView extends ItemView {
 		return 'calendar-clock';
 	}
 
-	async onOpen(): Promise<void> {
+	onOpen(): Promise<void> {
 		const container = this.containerEl.children[1];
-		if (!container) return;
+		if (!container) return Promise.resolve();
 
 		container.empty();
 		container.addClass('moments-timeline');
@@ -77,7 +77,8 @@ export class TimelineView extends ItemView {
 		this.timelineContentEl = container.createEl('div', { cls: 'moments-timeline-content' });
 
 		// Initial render
-		await this.renderTimeline();
+		this.renderTimeline();
+		return Promise.resolve();
 	}
 
 	onClose(): Promise<void> {
@@ -188,7 +189,7 @@ export class TimelineView extends ItemView {
 		});
 	}
 
-	async renderTimeline(force: boolean = false): Promise<void> {
+	renderTimeline(force: boolean = false): void {
 		if (!this.timelineContentEl) return;
 
 		const done = debugTimed('Timeline render');
