@@ -1,5 +1,5 @@
-# Moments
-
+<img width="2618" height="2030" alt="CleanShot 2026-02-16 at 16 16 02@2x" src="https://github.com/user-attachments/assets/44cf5fc2-3187-4ce7-b7bf-49c252ce59ba" />
+# Obsidian Moments
 A timeline that brings your Obsidian vault together.
 
 ## Why Moments?
