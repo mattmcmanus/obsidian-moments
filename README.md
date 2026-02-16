@@ -28,7 +28,9 @@ The timeline view pulls it all together. Open it on February 10th and you see th
 
 Add a dated heading to any file with a single command. Perfect for adding timestamped updates to project files.
 
-**Command**: `Insert moment in current file`
+**Command**: `Insert inline moment in current file`
+
+> **Tip:** On mobile, you can add this command to the toolbar for quick one-tap access. Go to **Settings** → **Mobile** → **Manage toolbar options** and add "Insert inline moment in current file".
 
 This inserts a heading like:
 ```markdown
@@ -44,7 +46,7 @@ Configure:
 
 Create a new dated note file with a single command.
 
-**Command**: `Create new moment note`
+**Command**: `Create new standalone moment`
 
 This creates a file like `2026-02-04 - Meeting notes.md` in your default notes location.
 
@@ -159,8 +161,8 @@ Open the timeline to see everything from a given day:
 
 | Command | Hotkey | Description |
 |---------|--------|-------------|
-| Insert moment in current file | — | Add a dated heading to the current file |
-| Create new moment note | — | Create a new dated note file |
+| Insert inline moment in current file | — | Add a dated heading to the current file |
+| Create new standalone moment | — | Create a new dated note file |
 | Open timeline | — | Open timeline in sidebar |
 | Open timeline in new tab | — | Open timeline as full page |
 | Go to today | — | Jump timeline to today |
