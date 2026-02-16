@@ -10,7 +10,7 @@ export function registerCommands(plugin: MomentsPlugin): void {
 	plugin.addCommand({
 		id: COMMANDS.ADD_INLINE,
 		name: 'Insert inline moment in current file',
-		icon: 'plus',
+		icon: 'calendar-clock',
 		callback: () => {
 			void addInlineMoment(plugin.app, plugin.settings);
 		},
