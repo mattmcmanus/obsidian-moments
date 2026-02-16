@@ -245,6 +245,10 @@
 }
 
 /* Moment Modal */
+.moments-modal .modal-content {
+	overflow-y: auto;
+}
+
 .moments-modal-title-setting.setting-item {
 	flex-direction: column;
 	align-items: flex-start;

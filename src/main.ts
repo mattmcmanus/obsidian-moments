@@ -105,7 +105,7 @@ export default class MomentsPlugin extends Plugin {
 
 			menu.addItem((item: MenuItem) =>
 				item
-					.setTitle('Insert moment in current file')
+					.setTitle('Insert inline moment in current file')
 					.setIcon('plus')
 					.onClick(() => {
 						this.executeCommand('moments:add-inline');
@@ -114,7 +114,7 @@ export default class MomentsPlugin extends Plugin {
 
 			menu.addItem((item: MenuItem) =>
 				item
-					.setTitle('Create new moment note')
+					.setTitle('Create new standalone moment')
 					.setIcon('file-plus')
 					.onClick(() => {
 						this.executeCommand('moments:create-standalone');

@@ -9,7 +9,7 @@ import { COMMANDS } from '../constants';
 export function registerCommands(plugin: MomentsPlugin): void {
 	plugin.addCommand({
 		id: COMMANDS.ADD_INLINE,
-		name: 'Insert moment in current file',
+		name: 'Insert inline moment in current file',
 		icon: 'plus',
 		callback: () => {
 			void addInlineMoment(plugin.app, plugin.settings);
@@ -18,7 +18,7 @@ export function registerCommands(plugin: MomentsPlugin): void {
 
 	plugin.addCommand({
 		id: COMMANDS.CREATE_STANDALONE,
-		name: 'Create new moment note',
+		name: 'Create new standalone moment',
 		icon: 'file-plus',
 		callback: () => {
 			void createStandaloneMoment(plugin.app, plugin.settings);
