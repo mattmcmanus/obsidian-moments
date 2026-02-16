@@ -4,12 +4,8 @@ import { MomentModal } from '../ui/moment-modal';
 import { FileSuggesterModal } from '../ui/file-suggester';
 import { buildHeadingString } from '../core/template-engine';
 import type { TemplateVariables } from '../core/template-engine';
-import {
-	findSectionLine,
-	insertAfterSection,
-	insertAtSectionEnd,
-	appendSection,
-} from '../core/section-helpers';
+import { insertHeading } from '../core/section-helpers';
+import { CURSOR_REPOSITION_DELAY_MS } from '../constants';
 
 /**
  * Execute the add inline moment command.
@@ -33,31 +29,29 @@ export function addInlineMoment(
 }
 
 /**
- * Compute the new file content with the heading inserted.
+ * Position the cursor on the line after the given heading and scroll into view.
  */
-function insertHeading(content: string, settings: MomentsSettings, heading: string): string {
-	if (settings.targetSectionMode === 'specified') {
-		let sectionLine = findSectionLine(content, settings.targetSection);
+function positionCursorAfterHeading(app: App, content: string, heading: string): void {
+	const lines = content.split('\n');
+	const headingLine = lines.findIndex((line) => line === heading);
 
-		// Create section if it doesn't exist
-		if (sectionLine === -1) {
-			content = appendSection(content, settings.targetSection);
-			sectionLine = content.split('\n').length - 2; // Account for the newline
-		}
-
-		// Insert based on position preference
-		if (settings.insertPosition === 'prepend') {
-			content = insertAfterSection(content, sectionLine, heading);
-		} else {
-			content = insertAtSectionEnd(content, sectionLine, heading);
-		}
-	} else {
-		// No target section - append to end of file
-		const trimmed = content.trimEnd();
-		content = `${trimmed}\n\n${heading}\n`;
+	if (headingLine !== -1) {
+		setTimeout(() => {
+			const activeView = app.workspace.getActiveViewOfType(MarkdownView);
+			if (activeView?.editor) {
+				const cursorLine = headingLine + 1;
+				activeView.editor.setCursor({ line: cursorLine, ch: 0 });
+				activeView.editor.scrollIntoView(
+					{
+						from: { line: cursorLine, ch: 0 },
+						to: { line: cursorLine, ch: 0 },
+					},
+					true
+				);
+				activeView.editor.focus();
+			}
+		}, CURSOR_REPOSITION_DELAY_MS);
 	}
-
-	return content;
 }
 
 /**
@@ -94,48 +88,24 @@ function addMomentToFile(
 				const view = app.workspace.getActiveViewOfType(MarkdownView);
 				const editor = view?.editor;
 
-				// Read content via editor (preserves undo history) or vault as fallback
+				// Write via editor when available to preserve undo history,
+				// or use vault.process() as an atomic read-modify-write fallback
 				let content: string;
 				if (editor) {
-					content = editor.getValue();
+					content = insertHeading(editor.getValue(), settings, heading);
+					editor.setValue(content);
 				} else {
+					await app.vault.process(file, (data) =>
+						insertHeading(data, settings, heading)
+					);
 					content = await app.vault.read(file);
 				}
 
-				content = insertHeading(content, settings, heading);
-
-				// Write via editor when available to preserve undo history
-				if (editor) {
-					editor.setValue(content);
-				} else {
-					await app.vault.modify(file, content);
-				}
-
-				// Position cursor after the new heading
-				const lines = content.split('\n');
-				const headingLine = lines.findIndex((line) => line === heading);
-
-				if (headingLine !== -1) {
-					setTimeout(() => {
-						const activeView = app.workspace.getActiveViewOfType(MarkdownView);
-						if (activeView?.editor) {
-							const cursorLine = headingLine + 1;
-							activeView.editor.setCursor({ line: cursorLine, ch: 0 });
-							activeView.editor.scrollIntoView(
-								{
-									from: { line: cursorLine, ch: 0 },
-									to: { line: cursorLine, ch: 0 },
-								},
-								true
-							);
-							activeView.editor.focus();
-						}
-					}, 50);
-				}
+				positionCursorAfterHeading(app, content, heading);
 
 				new Notice('Moment created');
 			} catch (error) {
-				console.error('Failed to create moment:', error);
+				console.error('Moments: Failed to create inline moment:', error);
 				new Notice('Failed to create moment');
 			}
 		},

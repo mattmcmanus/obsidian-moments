@@ -4,6 +4,16 @@
  */
 
 /**
+ * Options that control where a heading is inserted in markdown content.
+ * Uses structural typing so MomentsSettings can be passed directly.
+ */
+export interface InsertHeadingOptions {
+	targetSectionMode: 'specified' | 'none';
+	targetSection: string;
+	insertPosition: 'prepend' | 'append';
+}
+
+/**
  * Find a section heading in file content and return its line number.
  * Returns -1 if not found.
  */
@@ -88,4 +98,38 @@ export function appendSection(content: string, sectionHeading: string): string {
 	// Add section at end with proper spacing
 	const trimmed = content.trimEnd();
 	return `${trimmed}\n\n${sectionHeading}\n`;
+}
+
+/**
+ * Insert a heading into markdown content according to the given options.
+ * When targetSectionMode is 'specified', inserts into the target section
+ * (creating it if needed). Otherwise appends to end of file.
+ */
+export function insertHeading(
+	content: string,
+	options: InsertHeadingOptions,
+	heading: string
+): string {
+	if (options.targetSectionMode === 'specified') {
+		let sectionLine = findSectionLine(content, options.targetSection);
+
+		// Create section if it doesn't exist
+		if (sectionLine === -1) {
+			content = appendSection(content, options.targetSection);
+			sectionLine = content.split('\n').length - 2; // Account for the newline
+		}
+
+		// Insert based on position preference
+		if (options.insertPosition === 'prepend') {
+			content = insertAfterSection(content, sectionLine, heading);
+		} else {
+			content = insertAtSectionEnd(content, sectionLine, heading);
+		}
+	} else {
+		// No target section - append to end of file
+		const trimmed = content.trimEnd();
+		content = `${trimmed}\n\n${heading}\n`;
+	}
+
+	return content;
 }

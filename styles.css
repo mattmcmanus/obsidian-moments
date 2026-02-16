@@ -244,6 +244,25 @@
 	line-height: 1.5;
 }
 
+/* Moment Modal */
+.moments-modal-title-setting.setting-item {
+	flex-direction: column;
+	align-items: flex-start;
+}
+
+.moments-modal-title-setting .setting-item-control {
+	width: 100%;
+}
+
+.moments-modal-title-setting .setting-item-control input[type="text"] {
+	width: 100%;
+}
+
+.moments-suggest-path {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
 /* Mobile Adjustments */
 @media (max-width: 600px) {
 	.moments-timeline-header {
