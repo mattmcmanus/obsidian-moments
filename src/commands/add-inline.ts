@@ -34,6 +34,34 @@ export async function addInlineMoment(
 }
 
 /**
+ * Compute the new file content with the heading inserted.
+ */
+function insertHeading(content: string, settings: MomentsSettings, heading: string): string {
+	if (settings.targetSectionMode === 'specified') {
+		let sectionLine = findSectionLine(content, settings.targetSection);
+
+		// Create section if it doesn't exist
+		if (sectionLine === -1) {
+			content = appendSection(content, settings.targetSection);
+			sectionLine = content.split('\n').length - 2; // Account for the newline
+		}
+
+		// Insert based on position preference
+		if (settings.insertPosition === 'prepend') {
+			content = insertAfterSection(content, sectionLine, heading);
+		} else {
+			content = insertAtSectionEnd(content, sectionLine, heading);
+		}
+	} else {
+		// No target section - append to end of file
+		const trimmed = content.trimEnd();
+		content = `${trimmed}\n\n${heading}\n`;
+	}
+
+	return content;
+}
+
+/**
  * Add a moment to a specific file.
  */
 async function addMomentToFile(
@@ -47,9 +75,6 @@ async function addMomentToFile(
 		dateFormat: settings.dateFormat,
 		onSubmit: async (result) => {
 			try {
-				// Read file content
-				let content = await app.vault.read(file);
-
 				// Build the heading
 				const templateVars: TemplateVariables = {
 					date: result.date,
@@ -63,56 +88,48 @@ async function addMomentToFile(
 					settings.dateLinkStyle === 'wikilink'
 				);
 
-				// Determine where to insert
-				if (settings.targetSectionMode === 'specified') {
-					let sectionLine = findSectionLine(content, settings.targetSection);
-
-					// Create section if it doesn't exist
-					if (sectionLine === -1) {
-						content = appendSection(content, settings.targetSection);
-						sectionLine = content.split('\n').length - 2; // Account for the newline
-					}
-
-					// Insert based on position preference
-					if (settings.insertPosition === 'prepend') {
-						content = insertAfterSection(content, sectionLine, heading);
-					} else {
-						content = insertAtSectionEnd(content, sectionLine, heading);
-					}
-				} else {
-					// No target section - append to end of file
-					const trimmed = content.trimEnd();
-					content = `${trimmed}\n\n${heading}\n`;
-				}
-
-				// Write the file
-				await app.vault.modify(file, content);
-
-				// Open the file and position cursor
+				// Open the file to ensure we have an editor
 				const leaf = app.workspace.getLeaf();
 				await leaf.openFile(file);
 
-				// Find the line number of the new heading
+				const view = app.workspace.getActiveViewOfType(MarkdownView);
+				const editor = view?.editor;
+
+				// Read content via editor (preserves undo history) or vault as fallback
+				let content: string;
+				if (editor) {
+					content = editor.getValue();
+				} else {
+					content = await app.vault.read(file);
+				}
+
+				content = insertHeading(content, settings, heading);
+
+				// Write via editor when available to preserve undo history
+				if (editor) {
+					editor.setValue(content);
+				} else {
+					await app.vault.modify(file, content);
+				}
+
+				// Position cursor after the new heading
 				const lines = content.split('\n');
 				const headingLine = lines.findIndex((line) => line === heading);
 
-				// Position cursor after the new heading with a small delay
-				// to ensure the editor has updated
 				if (headingLine !== -1) {
 					setTimeout(() => {
-						const view = app.workspace.getActiveViewOfType(MarkdownView);
-						if (view?.editor) {
+						const activeView = app.workspace.getActiveViewOfType(MarkdownView);
+						if (activeView?.editor) {
 							const cursorLine = headingLine + 1;
-							view.editor.setCursor({ line: cursorLine, ch: 0 });
-							view.editor.scrollIntoView(
+							activeView.editor.setCursor({ line: cursorLine, ch: 0 });
+							activeView.editor.scrollIntoView(
 								{
 									from: { line: cursorLine, ch: 0 },
 									to: { line: cursorLine, ch: 0 },
 								},
 								true
 							);
-							// Focus the editor
-							view.editor.focus();
+							activeView.editor.focus();
 						}
 					}, 50);
 				}

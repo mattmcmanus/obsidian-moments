@@ -40,10 +40,3 @@ export const COMMANDS = {
 	OPEN_TIMELINE: 'open-timeline',
 	OPEN_TIMELINE_TAB: 'open-timeline-tab',
 } as const;
-
-/**
- * Hotkeys
- */
-export const HOTKEYS = {
-	ADD_INLINE: [{ modifiers: ['Mod', 'Alt'], key: 'n' }],
-} as const;

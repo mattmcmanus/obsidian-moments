@@ -1,4 +1,4 @@
-import { App, Notice, TFile } from 'obsidian';
+import { App, Notice, TFile, normalizePath } from 'obsidian';
 import type { MomentsSettings } from '../settings/settings';
 import { MomentModal } from '../ui/moment-modal';
 import { buildFilename, renderTemplate } from '../core/template-engine';
@@ -59,7 +59,7 @@ export async function createStandaloneMoment(
 
 				// Get folder path
 				const folderPath = getNewNoteFolderPath(app);
-				const fullPath = folderPath ? `${folderPath}/${filename}` : filename;
+				const fullPath = normalizePath(folderPath ? `${folderPath}/${filename}` : filename);
 
 				// Check if file already exists
 				const existingFile = app.vault.getAbstractFileByPath(fullPath);

@@ -1,4 +1,4 @@
-import { App, FuzzySuggestModal, TFile, TFolder } from 'obsidian';
+import { App, FuzzySuggestModal, TFile, TFolder, normalizePath } from 'obsidian';
 import { getCommunityPlugin, getInternalPlugin } from '../utils/obsidian-helpers';
 
 /**
@@ -30,7 +30,7 @@ export function getTemplateFiles(app: App): TFile[] {
 		return [];
 	}
 
-	const folder = app.vault.getAbstractFileByPath(templatesFolder);
+	const folder = app.vault.getAbstractFileByPath(normalizePath(templatesFolder));
 	if (!(folder instanceof TFolder)) {
 		return [];
 	}

@@ -38,7 +38,7 @@ export class MomentModal extends Modal {
 	onOpen() {
 		const { contentEl } = this;
 
-		contentEl.createEl('h2', { text: this.modalTitle });
+		this.titleEl.setText(this.modalTitle);
 
 		// Title input
 		new Setting(contentEl)

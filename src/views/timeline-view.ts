@@ -664,7 +664,7 @@ export class TimelineView extends ItemView {
 	private renderEmptyState(): void {
 		const emptyState = this.timelineContentEl.createEl('div', { cls: 'moments-empty-state' });
 
-		emptyState.createEl('h3', { text: 'No moments yet' });
+		emptyState.createEl('div', { cls: 'moments-empty-state-title', text: 'No moments yet' });
 
 		emptyState.createEl('p', {
 			text: 'Moments are date-linked entries in your notes. They can be inline headings with dates or standalone dated note files.',
