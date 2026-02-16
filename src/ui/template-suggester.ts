@@ -91,8 +91,7 @@ export class TemplateSuggesterModal extends FuzzySuggestModal<TFile | null> {
 		super(app);
 		this.templates = getTemplateFiles(app);
 		this.onChoose = onChoose;
-		// eslint-disable-next-line obsidianmd/ui/sentence-case -- technical instruction
-		this.setPlaceholder('Choose a template (press Esc to skip)');
+		this.setPlaceholder('Choose a template (press escape to skip)');
 		this.setInstructions([
 			{ command: '↑↓', purpose: 'to navigate' },
 			{ command: '↵', purpose: 'to select' },

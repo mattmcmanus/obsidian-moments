@@ -28,6 +28,9 @@ export default tseslint.config(
 	...obsidianmd.configs.recommended,
 	{
 		files: ["src/**/*.ts"],
+		linterOptions: {
+			noInlineConfig: true,
+		},
 		plugins: {
 			"@typescript-eslint": tseslint.plugin,
 		},
