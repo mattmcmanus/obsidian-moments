@@ -84,6 +84,7 @@ export default class MomentsPlugin extends Plugin {
 		this.addCommand({
 			id: COMMANDS.OPEN_TIMELINE,
 			name: 'Open timeline',
+			icon: RIBBON_ICON,
 			callback: () => {
 				void this.openTimeline('sidebar');
 			},
@@ -92,6 +93,7 @@ export default class MomentsPlugin extends Plugin {
 		this.addCommand({
 			id: COMMANDS.OPEN_TIMELINE_TAB,
 			name: 'Open timeline in new tab',
+			icon: RIBBON_ICON,
 			callback: () => {
 				void this.openTimeline('tab');
 			},
