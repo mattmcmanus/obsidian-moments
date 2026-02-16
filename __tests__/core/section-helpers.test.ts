@@ -4,7 +4,9 @@ import {
 	insertAfterSection,
 	insertAtSectionEnd,
 	appendSection,
+	insertHeading,
 } from '../../src/core/section-helpers';
+import type { InsertHeadingOptions } from '../../src/core/section-helpers';
 
 describe('findSectionLine', () => {
 	it('finds a section heading by exact match', () => {
@@ -125,5 +127,85 @@ describe('appendSection', () => {
 		const result = appendSection('', '## Notes');
 
 		expect(result).toBe('\n\n## Notes\n');
+	});
+});
+
+describe('findSectionLine edge cases', () => {
+	it('does not match partial heading text', () => {
+		const content = '# Title\n\n## Notes and more\n\nSome content';
+		expect(findSectionLine(content, '## Notes')).toBe(-1);
+	});
+
+	it('finds section between adjacent sections', () => {
+		const content = '## First\n## Notes\n## Last';
+		expect(findSectionLine(content, '## Notes')).toBe(1);
+	});
+});
+
+describe('insertHeading', () => {
+	const specifiedPrepend: InsertHeadingOptions = {
+		targetSectionMode: 'specified',
+		targetSection: '## Notes',
+		insertPosition: 'prepend',
+	};
+
+	const specifiedAppend: InsertHeadingOptions = {
+		targetSectionMode: 'specified',
+		targetSection: '## Notes',
+		insertPosition: 'append',
+	};
+
+	const noneMode: InsertHeadingOptions = {
+		targetSectionMode: 'none',
+		targetSection: '## Notes',
+		insertPosition: 'prepend',
+	};
+
+	it('prepends heading after section heading', () => {
+		const content = '# Title\n\n## Notes\n\nExisting';
+		const result = insertHeading(content, specifiedPrepend, '### New');
+
+		const lines = result.split('\n');
+		expect(lines[2]).toBe('## Notes');
+		expect(lines[3]).toBe('');
+		expect(lines[4]).toBe('### New');
+	});
+
+	it('appends heading at section end', () => {
+		const content = '## Notes\n\nExisting\n\n## Other';
+		const result = insertHeading(content, specifiedAppend, '### New');
+
+		const newIdx = result.indexOf('### New');
+		const otherIdx = result.indexOf('## Other');
+		expect(newIdx).toBeGreaterThan(0);
+		expect(newIdx).toBeLessThan(otherIdx);
+	});
+
+	it('creates missing section when specified mode', () => {
+		const content = '# Title\n\nSome content';
+		const result = insertHeading(content, specifiedPrepend, '### New');
+
+		expect(result).toContain('## Notes');
+		expect(result).toContain('### New');
+	});
+
+	it('appends to end of file in none mode', () => {
+		const content = '# Title\n\nSome content';
+		const result = insertHeading(content, noneMode, '### New');
+
+		expect(result).toBe('# Title\n\nSome content\n\n### New\n');
+	});
+
+	it('handles empty content in none mode', () => {
+		const result = insertHeading('', noneMode, '### New');
+
+		expect(result).toBe('\n\n### New\n');
+	});
+
+	it('handles empty content in specified mode', () => {
+		const result = insertHeading('', specifiedPrepend, '### New');
+
+		expect(result).toContain('## Notes');
+		expect(result).toContain('### New');
 	});
 });

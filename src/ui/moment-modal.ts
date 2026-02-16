@@ -1,6 +1,7 @@
 import { App, Modal, Setting, Notice } from 'obsidian';
 import { formatDate, parseDate, DEFAULT_DATE_FORMAT } from '../core/date-parser';
 import { NoteLinkSuggest } from './note-link-suggest';
+import { MODAL_FOCUS_DELAY_MS } from '../constants';
 
 /**
  * Result from the moment modal
@@ -72,7 +73,7 @@ export class MomentModal extends Modal {
 					});
 				new NoteLinkSuggest(this.app, text.inputEl);
 				// Focus the title input — date is pre-filled
-				setTimeout(() => text.inputEl.focus(), 10);
+				setTimeout(() => text.inputEl.focus(), MODAL_FOCUS_DELAY_MS);
 			});
 		titleSetting.settingEl.addClass('moments-modal-title-setting');
 
@@ -92,12 +93,10 @@ export class MomentModal extends Modal {
 				})
 			);
 
-		// Handle Enter key in title input
-		contentEl.addEventListener('keydown', (e) => {
-			if (e.key === 'Enter' && !e.shiftKey) {
-				e.preventDefault();
-				this.submit();
-			}
+		// Handle Enter key — Modal.scope is auto-managed (pushed on open, popped on close)
+		this.scope.register([], 'Enter', (e) => {
+			e.preventDefault();
+			this.submit();
 		});
 	}
 

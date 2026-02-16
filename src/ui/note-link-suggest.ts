@@ -1,4 +1,5 @@
 import { AbstractInputSuggest, App, TFile } from 'obsidian';
+import { extractPartialLink, filterAndSortLinkSuggestions } from '../core/note-link-helpers';
 
 /**
  * Provides [[note link]] suggestions in a text input.
@@ -13,26 +14,10 @@ export class NoteLinkSuggest extends AbstractInputSuggest<TFile> {
 	}
 
 	getSuggestions(query: string): TFile[] {
-		// Find the last unclosed [[ in the query
-		const lastOpen = query.lastIndexOf('[[');
-		if (lastOpen === -1) return [];
+		const partial = extractPartialLink(query);
+		if (partial === null) return [];
 
-		// Check if there's a ]] after the [[
-		const afterOpen = query.slice(lastOpen + 2);
-		if (afterOpen.includes(']]')) return [];
-
-		const partial = afterOpen.toLowerCase();
-		const files = this.app.vault.getMarkdownFiles();
-
-		return files
-			.filter((file) => file.basename.toLowerCase().includes(partial))
-			.sort((a, b) => {
-				const aStartsWith = a.basename.toLowerCase().startsWith(partial);
-				const bStartsWith = b.basename.toLowerCase().startsWith(partial);
-				if (aStartsWith && !bStartsWith) return -1;
-				if (!aStartsWith && bStartsWith) return 1;
-				return a.basename.localeCompare(b.basename);
-			});
+		return filterAndSortLinkSuggestions(this.app.vault.getMarkdownFiles(), partial);
 	}
 
 	renderSuggestion(file: TFile, el: HTMLElement): void {

@@ -1,4 +1,4 @@
-import { App, Notice, TFile, normalizePath } from 'obsidian';
+import { App, Notice, normalizePath } from 'obsidian';
 import type { MomentsSettings } from '../settings/settings';
 import { MomentModal } from '../ui/moment-modal';
 import { buildFilename, renderTemplate } from '../core/template-engine';
@@ -62,13 +62,10 @@ export async function createStandaloneMoment(
 				const fullPath = normalizePath(folderPath ? `${folderPath}/${filename}` : filename);
 
 				// Check if file already exists
-				const existingFile = app.vault.getAbstractFileByPath(fullPath);
+				const existingFile = app.vault.getFileByPath(fullPath);
 				if (existingFile) {
 					new Notice(`File already exists: ${filename}`);
-					// Open the existing file
-					if (existingFile instanceof TFile) {
-						await app.workspace.getLeaf().openFile(existingFile);
-					}
+					await app.workspace.getLeaf().openFile(existingFile);
 					return;
 				}
 
@@ -88,21 +85,23 @@ export async function createStandaloneMoment(
 				if (hasTemplatesAvailable(app)) {
 					new TemplateSuggesterModal(app, (templateFile) => {
 						if (templateFile) {
-							applyTemplate(app, file, templateFile)
+							void applyTemplate(app, file, templateFile)
 								.then(() => {
-									new Notice('Template applied');
+									new Notice('Moment note created with template');
 								})
 								.catch((error: unknown) => {
-									console.error('Failed to apply template:', error);
+									console.error('Moments: Failed to apply template:', error);
 									new Notice('Failed to apply template');
 								});
+						} else {
+							new Notice('Moment note created');
 						}
 					}).open();
+				} else {
+					new Notice('Moment note created');
 				}
-
-				new Notice('Moment note created');
 			} catch (error) {
-				console.error('Failed to create moment note:', error);
+				console.error('Moments: Failed to create moment note:', error);
 				new Notice('Failed to create moment note');
 			}
 		},

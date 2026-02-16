@@ -40,3 +40,17 @@ export const COMMANDS = {
 	OPEN_TIMELINE: 'open-timeline',
 	OPEN_TIMELINE_TAB: 'open-timeline-tab',
 } as const;
+
+/**
+ * Delay before focusing the title input in a modal.
+ * Needed because Obsidian's Modal.open() renders asynchronously;
+ * without a short delay the input element isn't yet in the DOM.
+ */
+export const MODAL_FOCUS_DELAY_MS = 10;
+
+/**
+ * Delay before repositioning the cursor after inserting content.
+ * Allows Obsidian's editor to finish processing the setValue/modify
+ * before we move the cursor and scroll into view.
+ */
+export const CURSOR_REPOSITION_DELAY_MS = 50;
