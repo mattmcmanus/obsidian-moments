@@ -41,26 +41,9 @@ export class MomentModal extends Modal {
 		const { contentEl } = this;
 
 		this.titleEl.setText(this.modalTitle);
+		this.modalEl.addClass('moments-modal');
 
-		// Date input — native date picker
-		new Setting(contentEl)
-			.setName('Date')
-			.addText((text) => {
-				text.inputEl.type = 'date';
-				// HTML date inputs use ISO format internally
-				text.inputEl.value = formatDate(new Date(), DEFAULT_DATE_FORMAT);
-				// Listen on the input element directly — date pickers fire
-				// 'change' events, not 'input' events that TextComponent uses
-				text.inputEl.addEventListener('change', () => {
-					const isoValue = text.inputEl.value;
-					const parsed = parseDate(isoValue, DEFAULT_DATE_FORMAT);
-					if (parsed) {
-						this.dateText = formatDate(parsed, this.dateFormat);
-					}
-				});
-			});
-
-		// Title input — full width with [[ link suggestions
+		// Title input first — it's the primary input, date is pre-filled
 		const titleSetting = new Setting(contentEl)
 			.setName('Title')
 			.setDesc('What is this moment about?')
@@ -72,10 +55,24 @@ export class MomentModal extends Modal {
 						this.titleText = value;
 					});
 				new NoteLinkSuggest(this.app, text.inputEl);
-				// Focus the title input — date is pre-filled
 				setTimeout(() => text.inputEl.focus(), MODAL_FOCUS_DELAY_MS);
 			});
 		titleSetting.settingEl.addClass('moments-modal-title-setting');
+
+		// Date input — native date picker
+		new Setting(contentEl)
+			.setName('Date')
+			.addText((text) => {
+				text.inputEl.type = 'date';
+				text.inputEl.value = formatDate(new Date(), DEFAULT_DATE_FORMAT);
+				text.inputEl.addEventListener('change', () => {
+					const isoValue = text.inputEl.value;
+					const parsed = parseDate(isoValue, DEFAULT_DATE_FORMAT);
+					if (parsed) {
+						this.dateText = formatDate(parsed, this.dateFormat);
+					}
+				});
+			});
 
 		// Buttons
 		new Setting(contentEl)
