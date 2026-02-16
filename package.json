@@ -9,7 +9,7 @@
 		"build": "tsc -noEmit && node esbuild.config.mjs production",
 		"deploy": "npm run build && mkdir -p ~/notes/.obsidian/plugins/moments && cp dist/main.js dist/manifest.json dist/styles.css ~/notes/.obsidian/plugins/moments/",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
-		"lint": "eslint .",
+		"lint": "tsc -noEmit && eslint .",
 		"test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
 		"test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
 		"test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage"
