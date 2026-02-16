@@ -6,63 +6,60 @@
 - Entry point: `main.ts` compiled to `main.js` and loaded by Obsidian.
 - Required release artifacts: `main.js`, `manifest.json`, and optional `styles.css`.
 
+## This project (Moments)
+
+### Commands
+
+```
+npm run lint          # ESLint (typescript-eslint + obsidianmd)
+npm test              # Jest (144 tests, 93%+ coverage)
+npm run build         # TypeScript check + esbuild bundle
+npm run dev           # esbuild watch mode
+npm run deploy        # Build + copy to ~/notes vault
+```
+
+Always run `npm run lint && npm test && npm run build` after changes.
+
+### Architecture
+
+- `src/core/` — Pure functions, no Obsidian imports (fully testable)
+- `src/views/timeline-view.ts` — Main timeline view (~600 lines)
+- `src/commands/` — Command registration and handlers
+- `src/settings/` — Settings types, defaults, UI tab
+- `src/ui/` — Modals (moment creation, template picker)
+- `src/utils/debug.ts` — Conditional debug logging
+- `__tests__/` — Jest tests (core/ unit, integration/ with mocks)
+
+### Obsidian ESLint gotchas
+
+- Never assign default hotkeys to commands
+- Use `console.debug` not `console.log`
+- Use `textContent` not `innerHTML`
+- Use `new Setting().setHeading()` not `containerEl.createEl('h2')`
+- Pass `this` (view) not `this.plugin` to `MarkdownRenderer.render()`
+
+### TypeScript patterns
+
+- Use typed interface augmentation for internal plugin APIs (avoid `any`)
+- Use `void` operator for floating promises in event handlers
+- Use sync callbacks with `void asyncThing()` for Obsidian UI callbacks
+- Cast vault for `getConfig`: `this.app.vault as Vault & { getConfig: ... }`
+
+### Key design decisions
+
+- Debounced file handling: 500ms batch, 300ms timeline refresh
+- Month-based timeline pagination with 12-month backwards search
+- Template integration: core Templates + Templater via typed interface augmentation
+- See `docs/plans/2026-02-16 - Initial Plan.md` for full architecture
+
 ## Environment & tooling
 
 - Node.js: use current LTS (Node 18+ recommended).
-- **Package manager: npm** (required for this sample - `package.json` defines npm scripts and dependencies).
-- **Bundler: esbuild** (required for this sample - `esbuild.config.mjs` and build scripts depend on it). Alternative bundlers like Rollup or webpack are acceptable for other projects if they bundle all external dependencies into `main.js`.
+- Package manager: npm.
+- Bundler: esbuild (`esbuild.config.mjs`).
 - Types: `obsidian` type definitions.
-
-**Note**: This sample project has specific technical dependencies on npm and esbuild. If you're creating a plugin from scratch, you can choose different tools, but you'll need to replace the build configuration accordingly.
-
-### Install
-
-```bash
-npm install
-```
-
-### Dev (watch)
-
-```bash
-npm run dev
-```
-
-### Production build
-
-```bash
-npm run build
-```
-
-## Linting
-
-- To use eslint install eslint from terminal: `npm install -g eslint`
-- To use eslint to analyze this project use this command: `eslint main.ts`
-- eslint will then create a report with suggestions for code improvement by file and line number.
-- If your source code is in a folder, such as `src`, you can use eslint with this command to analyze all files in that folder: `eslint ./src/`
-
-## File & folder conventions
-
-- **Organize code into multiple files**: Split functionality across separate modules rather than putting everything in `main.ts`.
-- Source lives in `src/`. Keep `main.ts` small and focused on plugin lifecycle (loading, unloading, registering commands).
-- **Example file structure**:
-  ```
-  src/
-    main.ts           # Plugin entry point, lifecycle management
-    settings.ts       # Settings interface and defaults
-    commands/         # Command implementations
-      command1.ts
-      command2.ts
-    ui/              # UI components, modals, views
-      modal.ts
-      view.ts
-    utils/           # Utility functions, helpers
-      helpers.ts
-      constants.ts
-    types.ts         # TypeScript interfaces and types
-  ```
-- **Do not commit build artifacts**: Never commit `node_modules/`, `main.js`, or other generated files to version control.
+- Do not commit build artifacts (`node_modules/`, `main.js`, etc.).
 - Keep the plugin small. Avoid large dependencies. Prefer browser-compatible packages.
-- Generated output should be placed at the plugin root or `dist/` depending on your build setup. Release artifacts must end up at the top level of the plugin folder in the vault (`main.js`, `manifest.json`, `styles.css`).
 
 ## Manifest rules (`manifest.json`)
 
@@ -113,30 +110,19 @@ Follow Obsidian's **Developer Policies** and **Plugin Guidelines**. In particula
 - Avoid deceptive patterns, ads, or spammy notifications.
 - Register and clean up all DOM, app, and interval listeners using the provided `register*` helpers so the plugin unloads safely.
 
-## UX & copy guidelines (for UI text, commands, settings)
+## UX & copy guidelines
 
-- Prefer sentence case for headings, buttons, and titles.
-- Use clear, action-oriented imperatives in step-by-step copy.
 - Use **bold** to indicate literal UI labels. Prefer "select" for interactions.
 - Use arrow notation for navigation: **Settings → Community plugins**.
 - Keep in-app strings short, consistent, and free of jargon.
 
-## Performance
-
-- Keep startup light. Defer heavy work until needed.
-- Avoid long-running tasks during `onload`; use lazy initialization.
-- Batch disk access and avoid excessive vault scans.
-- Debounce/throttle expensive operations in response to file system events.
-
 ## Coding conventions
 
-- TypeScript with `"strict": true` preferred.
-- **Keep `main.ts` minimal**: Focus only on plugin lifecycle (onload, onunload, addCommand calls). Delegate all feature logic to separate modules.
-- **Split large files**: If any file exceeds ~200-300 lines, consider breaking it into smaller, focused modules.
-- **Use clear module boundaries**: Each file should have a single, well-defined responsibility.
+- Keep `main.ts` minimal: lifecycle only, delegate to separate modules.
+- Split large files: aim for single, well-defined responsibility per file.
 - Bundle everything into `main.js` (no unbundled runtime deps).
 - Avoid Node/Electron APIs if you want mobile compatibility; set `isDesktopOnly` accordingly.
-- Prefer `async/await` over promise chains; handle errors gracefully.
+- Keep startup light. Defer heavy work until needed; use lazy initialization.
 
 ## Mobile
 
