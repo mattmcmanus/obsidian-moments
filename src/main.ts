@@ -466,9 +466,9 @@ export default class MomentsPlugin extends Plugin {
 	 * Get implicit moments (files created/modified without explicit moments).
 	 * Results are cached and invalidated when files change.
 	 */
-	async getImplicitMomentsForDisplay(
+	getImplicitMomentsForDisplay(
 		filter: TimelineFilter
-	): Promise<Map<string, ImplicitMoment[]>> {
+	): Map<string, ImplicitMoment[]> {
 		const cacheKey = [
 			this.implicitMomentsGeneration,
 			filter.startDate ?? '',

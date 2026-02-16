@@ -38,10 +38,10 @@ function getNewNoteFolderPath(app: App): string {
 /**
  * Execute the create standalone moment command.
  */
-export async function createStandaloneMoment(
+export function createStandaloneMoment(
 	app: App,
 	settings: MomentsSettings
-): Promise<void> {
+): void {
 	// Open the moment modal
 	new MomentModal(app, {
 		title: 'Create new moment note',

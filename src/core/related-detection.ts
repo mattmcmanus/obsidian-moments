@@ -22,8 +22,7 @@ export function getFileRelationInfo(app: App, file: TFile): FileRelationInfo {
 	const aliases: string[] = [];
 
 	if (cache?.frontmatter) {
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-		const rawAliases = cache.frontmatter['aliases'] ?? cache.frontmatter['alias'];
+		const rawAliases: unknown = cache.frontmatter['aliases'] ?? cache.frontmatter['alias'];
 		if (Array.isArray(rawAliases)) {
 			for (const a of rawAliases) {
 				if (typeof a === 'string' && a.trim()) {

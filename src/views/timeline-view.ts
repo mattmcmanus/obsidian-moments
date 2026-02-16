@@ -80,10 +80,11 @@ export class TimelineView extends ItemView {
 		await this.renderTimeline();
 	}
 
-	async onClose(): Promise<void> {
+	onClose(): Promise<void> {
 		this.removeScrollListener();
 		this.destroyCardObserver();
 		this.contentCache.clear();
+		return Promise.resolve();
 	}
 
 	private createHeader(header: HTMLElement): void {
@@ -198,7 +199,7 @@ export class TimelineView extends ItemView {
 
 		let implicitByDate = new Map<string, ImplicitMoment[]>();
 		if (this.plugin.settings.showImplicitMoments) {
-			implicitByDate = await this.plugin.getImplicitMomentsForDisplay(
+			implicitByDate = this.plugin.getImplicitMomentsForDisplay(
 				this.filter
 			);
 		}

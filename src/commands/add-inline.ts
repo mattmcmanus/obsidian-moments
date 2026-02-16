@@ -14,23 +14,22 @@ import {
 /**
  * Execute the add inline moment command.
  */
-export async function addInlineMoment(
+export function addInlineMoment(
 	app: App,
 	settings: MomentsSettings
-): Promise<void> {
+): void {
 	// Get active file or prompt for one
-	let file: TFile | null = app.workspace.getActiveFile();
+	const file: TFile | null = app.workspace.getActiveFile();
 
 	if (!file) {
 		// No active file - prompt user to select one
-		return new Promise((resolve) => {
-			new FileSuggesterModal(app, (selectedFile) => {
-				void addMomentToFile(app, settings, selectedFile).then(resolve);
-			}).open();
-		});
+		new FileSuggesterModal(app, (selectedFile) => {
+			addMomentToFile(app, settings, selectedFile);
+		}).open();
+		return;
 	}
 
-	await addMomentToFile(app, settings, file);
+	addMomentToFile(app, settings, file);
 }
 
 /**
@@ -64,11 +63,11 @@ function insertHeading(content: string, settings: MomentsSettings, heading: stri
 /**
  * Add a moment to a specific file.
  */
-async function addMomentToFile(
+function addMomentToFile(
 	app: App,
 	settings: MomentsSettings,
 	file: TFile
-): Promise<void> {
+): void {
 	// Open the moment modal
 	new MomentModal(app, {
 		title: 'Insert moment',

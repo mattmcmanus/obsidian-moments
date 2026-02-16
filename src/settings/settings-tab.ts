@@ -21,12 +21,9 @@ export class MomentsSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Date format')
-			// eslint-disable-next-line obsidianmd/ui/sentence-case -- "Daily Notes" is a plugin name
-			.setDesc('Format for dates in headings and filenames. Auto-detected from Daily Notes if installed.')
+			.setDesc('Format for dates in headings and filenames. Auto-detected from daily notes if installed.')
 			.addText((text) =>
 				text
-					// eslint-disable-next-line obsidianmd/ui/sentence-case
-					.setPlaceholder('YYYY-MM-DD')
 					.setValue(this.plugin.settings.dateFormat)
 					.onChange(async (value) => {
 						this.plugin.settings.dateFormat = value || 'YYYY-MM-DD';
@@ -72,8 +69,6 @@ export class MomentsSettingTab extends PluginSettingTab {
 				.setDesc('The heading to insert moments under. Will be created if it does not exist.')
 				.addText((text) =>
 					text
-						// eslint-disable-next-line obsidianmd/ui/sentence-case
-						.setPlaceholder('## Notes')
 						.setValue(this.plugin.settings.targetSection)
 						.onChange(async (value) => {
 							this.plugin.settings.targetSection = value || '## Notes';
