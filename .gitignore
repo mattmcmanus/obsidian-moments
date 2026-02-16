@@ -17,6 +17,9 @@ dist/
 # obsidian
 data.json
 
+# Claude Code local settings
+.claude/settings.local.json
+
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store
 
