@@ -4,6 +4,7 @@
 	"version": "0.1.0",
 	"minAppVersion": "0.15.0",
 	"description": "Unify date-based note-taking with inline moments, standalone dated notes, and a chronological timeline view.",
-	"author": "Matt",
+	"author": "mattmcmanus",
+	"authorUrl": "https://mcmanus.io",
 	"isDesktopOnly": false
 }

@@ -1,23 +1,24 @@
 # Moments
 
-An Obsidian plugin that unifies date-based note-taking across your vault.
+A timeline that brings your Obsidian vault together.
 
-## The Problem
+## Why Moments?
 
-Date-related notes end up scattered across your vault in different forms:
-- Quick updates added to project files under a `## Notes` section
-- Dedicated dated notes for meetings, journals, or events
-- Daily notes from the core plugin
+Daily and periodic notes are a great starting point for date-based organization, but they're not always enough. Meeting notes about a project belong in the project file. Events deserve their own documents. Research updates live with the research. In practice, dated content ends up spread across your vault — and no single note captures the full picture of what happened on a given day.
 
-There's no easy way to see a chronological view of everything that happened on a given day.
+Moments evolves the idea. Instead of putting everything in one place, keep notes where they naturally belong and let Moments weave them into a unified timeline.
 
-## The Solution
+## How it works
 
-Moments brings all your dated content together:
+Moments recognizes three types of date-connected content:
 
-- **Inline moments**: Date-prefixed headers within any file (e.g., `### [[2026-02-04]] Call with Lawyer`)
-- **Standalone moments**: Dedicated dated notes (e.g., `2026-02-04 - Meeting notes.md`)
-- **Timeline view**: A chronological panel that weaves all dated content together
+- **Inline moments** — Dated headings inside any note. Add `### [[2026-02-10]] Contractor walkthrough` under a project's `## Notes` section and it appears in the timeline for that day.
+- **Standalone moments** — Dedicated dated notes like `2026-02-10 - Coffee with Sarah.md`. The full note becomes the moment.
+- **Implicit moments** — Files created or modified on a given day show up as subtle secondary entries, giving context for what else you were working on.
+
+The timeline view pulls it all together. Open it on February 10th and you see the contractor walkthrough from your renovation project, a standalone note from a coffee catch-up, your daily log, and whatever else you touched that day — all in one chronological view.
+
+> **Want to see it in action?** Open the [`demo/`](demo/) folder as an Obsidian vault to explore a working example.
 
 ## Features
 
@@ -25,7 +26,7 @@ Moments brings all your dated content together:
 
 Add a dated heading to any file with a single command. Perfect for adding timestamped updates to project files.
 
-**Command**: `Insert moment in current file` (`Cmd+Alt+N`)
+**Command**: `Insert moment in current file`
 
 This inserts a heading like:
 ```markdown
@@ -156,7 +157,7 @@ Open the timeline to see everything from a given day:
 
 | Command | Hotkey | Description |
 |---------|--------|-------------|
-| Insert moment in current file | `Cmd+Alt+N` | Add a dated heading to the current file |
+| Insert moment in current file | — | Add a dated heading to the current file |
 | Create new moment note | — | Create a new dated note file |
 | Open timeline | — | Open timeline in sidebar |
 | Open timeline in new tab | — | Open timeline as full page |
