@@ -652,6 +652,7 @@ export class TimelineView extends ItemView {
 			e.preventDefault();
 			const file = this.app.vault.getAbstractFileByPath(implicit.filePath);
 			if (file instanceof TFile) {
+				this.plugin.suppressNextAutoFilter = true;
 				void this.app.workspace.getLeaf().openFile(file);
 			}
 		});
@@ -690,6 +691,7 @@ export class TimelineView extends ItemView {
 			return;
 		}
 
+		this.plugin.suppressNextAutoFilter = true;
 		await this.app.workspace.getLeaf().openFile(file);
 
 		// For inline moments, scroll to the heading
