@@ -12,7 +12,7 @@
 
 ```
 npm run lint          # ESLint (typescript-eslint + obsidianmd)
-npm test              # Jest (144 tests, 93%+ coverage)
+npm test              # Jest (238 tests, 93%+ coverage)
 npm run build         # TypeScript check + esbuild bundle
 npm run dev           # esbuild watch mode
 npm run deploy        # Build + copy to ~/notes vault
@@ -51,6 +51,7 @@ Always run `npm run lint && npm test && npm run build` after changes.
 - Month-based timeline pagination with 12-month backwards search
 - Template integration: core Templates + Templater via typed interface augmentation
 - Auto-follow / pinned filter model: timeline follows active file by default; manual filter actions pin the filter
+- Day indicators: implicit moments grouped into "X, Y, and N more modified" summaries; active file indicator shows "N moments in File" when related filter is active
 - See `docs/plans/2026-02-16 - Initial Plan.md` for full architecture
 
 ## Environment & tooling
