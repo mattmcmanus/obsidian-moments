@@ -36,7 +36,7 @@ export class TimelineView extends ItemView {
 	private allMoments: Moment[] = [];
 	private groupedByDate: Map<string, Moment[]> = new Map();
 	private allImplicitByDate: Map<string, ImplicitMoment[]> = new Map();
-	private activeFileMomentsByDate = new Map<string, number>();
+	private activeFileMomentsByDate = new Map<string, Moment[]>();
 
 	// Content cache: avoids re-reading files on every render
 	private contentCache: Map<string, string> = new Map();
@@ -218,15 +218,14 @@ export class TimelineView extends ItemView {
 			);
 		}
 
-		// Count active file's own moments per day (for indicator when related filter is active)
-		this.activeFileMomentsByDate = new Map<string, number>();
+		// Group active file's own moments by day (for indicator when related filter is active)
+		this.activeFileMomentsByDate = new Map<string, Moment[]>();
 		if (this.filter.relatedToFile) {
 			const activeFileMoments = this.plugin.getMomentsForActiveFile(this.filter.relatedToFile);
 			for (const m of activeFileMoments) {
-				this.activeFileMomentsByDate.set(
-					m.date,
-					(this.activeFileMomentsByDate.get(m.date) ?? 0) + 1
-				);
+				const existing = this.activeFileMomentsByDate.get(m.date) ?? [];
+				existing.push(m);
+				this.activeFileMomentsByDate.set(m.date, existing);
 			}
 		}
 
@@ -307,8 +306,8 @@ export class TimelineView extends ItemView {
 			parts.push(`i:${date}:${items.length}`);
 		}
 		// Active file indicator fingerprint
-		for (const [date, count] of this.activeFileMomentsByDate) {
-			parts.push(`a:${date}:${count}`);
+		for (const [date, moments] of this.activeFileMomentsByDate) {
+			parts.push(`a:${date}:${moments.length}`);
 		}
 		return parts.join('|');
 	}
@@ -715,21 +714,24 @@ export class TimelineView extends ItemView {
 	}
 
 	private renderActiveFileIndicator(container: HTMLElement, date: string): void {
-		const count = this.activeFileMomentsByDate.get(date);
-		if (!count || !this.filter.relatedToFile) return;
+		const moments = this.activeFileMomentsByDate.get(date);
+		if (!moments?.length || !this.filter.relatedToFile) return;
 
 		const file = this.app.vault.getAbstractFileByPath(this.filter.relatedToFile);
 		if (!(file instanceof TFile)) return;
 
-		const text = formatActiveFileIndicator(count, file.basename);
+		const text = formatActiveFileIndicator(moments.length, file.basename);
 		const el = container.createEl('div', { cls: 'moments-day-indicator' });
 		const link = el.createEl('a', {
 			cls: 'moments-implicit-link',
 			text,
 		});
+		const firstMoment = moments[0];
+		if (!firstMoment) return;
 		link.addEventListener('click', (e) => {
 			e.preventDefault();
-			void this.app.workspace.getLeaf().openFile(file);
+			// Open the file and scroll to the first moment for this day
+			void this.openMoment(firstMoment);
 		});
 	}
 
