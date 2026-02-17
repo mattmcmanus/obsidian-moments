@@ -18,6 +18,8 @@ export class TimelineView extends ItemView {
 	private clearFilterBtn: HTMLButtonElement;
 	private configPanelEl: HTMLElement;
 	private configOpen: boolean = false;
+	private pinned = false;
+	private pinnedBtn: HTMLButtonElement;
 	private scrollHandler: (() => void) | null = null;
 	private filter: TimelineFilter = {
 		startDate: null,
@@ -106,6 +108,15 @@ export class TimelineView extends ItemView {
 		this.clearFilterBtn.addClass('moments-hidden');
 		this.clearFilterBtn.addEventListener('click', () => this.clearFilter());
 
+		// Pin indicator (hidden by default, shown when filter is pinned)
+		this.pinnedBtn = controls.createEl('button', {
+			cls: 'clickable-icon',
+			attr: { 'aria-label': 'Unpin filter (resume auto-follow)' },
+		});
+		setIcon(this.pinnedBtn, 'pin');
+		this.pinnedBtn.addClass('moments-hidden');
+		this.pinnedBtn.addEventListener('click', () => this.clearFilter());
+
 		// Config toggle button
 		const configBtn = controls.createEl('button', {
 			cls: 'clickable-icon',
@@ -142,6 +153,7 @@ export class TimelineView extends ItemView {
 		this.headerSubtitleEl.textContent = 'Filtering moments for';
 		this.headerSubtitleEl.toggleClass('moments-hidden', !hasFilter);
 		this.clearFilterBtn.toggleClass('moments-hidden', !hasFilter);
+		this.pinnedBtn.toggleClass('moments-hidden', !this.pinned);
 	}
 
 	private toggleConfigPanel(): void {
@@ -489,7 +501,10 @@ export class TimelineView extends ItemView {
 				item
 					.setTitle('Filter to this day')
 					.setIcon('calendar')
-					.onClick(() => this.setDateFilter(date, date))
+					.onClick(() => {
+						debug('Pinning date filter', { date });
+						this.applyFilter({ startDate: date, endDate: date, relatedToFile: null }, true);
+					})
 			);
 			menu.showAtMouseEvent(e);
 		});
@@ -709,24 +724,36 @@ export class TimelineView extends ItemView {
 
 	// Public methods for filtering
 
-	private applyFilter(updates: Partial<TimelineFilter>): void {
+	private applyFilter(updates: Partial<TimelineFilter>, pin = false): void {
+		if (pin) {
+			this.pinned = true;
+		}
 		Object.assign(this.filter, updates);
 		this.updateHeader();
 		void this.renderTimeline();
 	}
 
 	setDateFilter(startDate: string | null, endDate: string | null): void {
+		if (this.pinned) {
+			debug('Auto-follow skipped (filter pinned)');
+			return;
+		}
 		debug('Setting date filter', { startDate, endDate });
 		this.applyFilter({ startDate, endDate, relatedToFile: null });
 	}
 
 	setRelatedFilter(filePath: string): void {
+		if (this.pinned) {
+			debug('Auto-follow skipped (filter pinned)');
+			return;
+		}
 		debug('Setting related filter', { filePath });
 		this.applyFilter({ relatedToFile: filePath, startDate: null, endDate: null });
 	}
 
 	clearFilter(): void {
-		debug('Clearing filter');
+		debug('Clearing filter and unpinning');
+		this.pinned = false;
 		this.applyFilter({ startDate: null, endDate: null, relatedToFile: null });
 	}
 
