@@ -9,6 +9,7 @@ import {
 	createMomentCache,
 	addMomentToCache,
 	removeMomentsForFile,
+	getMomentsForFile,
 	getMomentsInDateRange,
 	hasExplicitMoments,
 	getAllDatesWithMoments,
@@ -421,6 +422,13 @@ export default class MomentsPlugin extends Plugin {
 		if (momentsFound > 0) {
 			debug('Scanned file', { path: file.path, momentsFound });
 		}
+	}
+
+	/**
+	 * Get all moments belonging to a specific file (for active file indicator).
+	 */
+	getMomentsForActiveFile(filePath: string): Moment[] {
+		return getMomentsForFile(this.momentCache, filePath);
 	}
 
 	/**

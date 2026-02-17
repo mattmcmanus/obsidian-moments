@@ -5,7 +5,7 @@ import { TIMELINE_VIEW_TYPE } from '../constants';
 import { formatDate } from '../core/date-parser';
 import { extractContentUnderHeading } from '../core/content-extractor';
 import { debug, debugTimed } from '../utils/debug';
-import { getPreviousMonth, getDatesForMonth, groupMomentsByDate } from '../core/timeline-helpers';
+import { getPreviousMonth, getDatesForMonth, groupMomentsByDate, formatActiveFileIndicator } from '../core/timeline-helpers';
 
 /**
  * Timeline view displaying moments grouped by day.
@@ -36,6 +36,7 @@ export class TimelineView extends ItemView {
 	private allMoments: Moment[] = [];
 	private groupedByDate: Map<string, Moment[]> = new Map();
 	private allImplicitByDate: Map<string, ImplicitMoment[]> = new Map();
+	private activeFileMomentsByDate = new Map<string, number>();
 
 	// Content cache: avoids re-reading files on every render
 	private contentCache: Map<string, string> = new Map();
@@ -217,6 +218,18 @@ export class TimelineView extends ItemView {
 			);
 		}
 
+		// Count active file's own moments per day (for indicator when related filter is active)
+		this.activeFileMomentsByDate = new Map<string, number>();
+		if (this.filter.relatedToFile) {
+			const activeFileMoments = this.plugin.getMomentsForActiveFile(this.filter.relatedToFile);
+			for (const m of activeFileMoments) {
+				this.activeFileMomentsByDate.set(
+					m.date,
+					(this.activeFileMomentsByDate.get(m.date) ?? 0) + 1
+				);
+			}
+		}
+
 		// Build a fingerprint from moment data to detect changes
 		const fingerprint = this.computeFingerprint(moments, implicitByDate);
 		if (!force && fingerprint === this.lastRenderFingerprint) {
@@ -242,7 +255,7 @@ export class TimelineView extends ItemView {
 		this.allImplicitByDate = implicitByDate;
 
 		// Get all dates
-		const allDates = new Set([...this.groupedByDate.keys(), ...this.allImplicitByDate.keys()]);
+		const allDates = new Set([...this.groupedByDate.keys(), ...this.allImplicitByDate.keys(), ...this.activeFileMomentsByDate.keys()]);
 
 		debug('Timeline data loaded', {
 			explicitMoments: this.allMoments.length,
@@ -292,6 +305,10 @@ export class TimelineView extends ItemView {
 		// Implicit fingerprint: count per date
 		for (const [date, items] of implicitByDate) {
 			parts.push(`i:${date}:${items.length}`);
+		}
+		// Active file indicator fingerprint
+		for (const [date, count] of this.activeFileMomentsByDate) {
+			parts.push(`a:${date}:${count}`);
 		}
 		return parts.join('|');
 	}
@@ -355,7 +372,7 @@ export class TimelineView extends ItemView {
 		const prevMonthStr = getPreviousMonth(this.oldestLoadedMonth);
 
 		// Check if there are any dates older than our oldest loaded month
-		const allDates = new Set([...this.groupedByDate.keys(), ...this.allImplicitByDate.keys()]);
+		const allDates = new Set([...this.groupedByDate.keys(), ...this.allImplicitByDate.keys(), ...this.activeFileMomentsByDate.keys()]);
 		const hasOlderDates = Array.from(allDates).some((date) => date < this.oldestLoadedMonth!);
 
 		if (!hasOlderDates) {
@@ -513,6 +530,9 @@ export class TimelineView extends ItemView {
 		for (const moment of moments) {
 			this.createMomentCardShell(content, moment);
 		}
+
+		// Active file moments indicator (when related filter is active)
+		this.renderActiveFileIndicator(content, date);
 
 		// Grouped implicit moments summary
 		this.renderImplicitSummary(content, implicitMoments);
@@ -692,6 +712,25 @@ export class TimelineView extends ItemView {
 			}
 			el.appendText(`, and ${fileNames.length - 2} more modified`);
 		}
+	}
+
+	private renderActiveFileIndicator(container: HTMLElement, date: string): void {
+		const count = this.activeFileMomentsByDate.get(date);
+		if (!count || !this.filter.relatedToFile) return;
+
+		const file = this.app.vault.getAbstractFileByPath(this.filter.relatedToFile);
+		if (!(file instanceof TFile)) return;
+
+		const text = formatActiveFileIndicator(count, file.basename);
+		const el = container.createEl('div', { cls: 'moments-day-indicator' });
+		const link = el.createEl('a', {
+			cls: 'moments-implicit-link',
+			text,
+		});
+		link.addEventListener('click', (e) => {
+			e.preventDefault();
+			void this.app.workspace.getLeaf().openFile(file);
+		});
 	}
 
 	private createImplicitFileLink(container: HTMLElement, implicit: ImplicitMoment): void {
