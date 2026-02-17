@@ -197,7 +197,7 @@ export class MomentsSettingTab extends PluginSettingTab {
 			.addSetting((setting) => {
 				setting
 					.setName('Show implicit moments')
-					.setDesc('Show files created or modified on each day as secondary entries')
+					.setDesc('Show modified files as a summary at the bottom of each day')
 					.addToggle((toggle) =>
 						toggle
 							.setValue(this.plugin.settings.showImplicitMoments)

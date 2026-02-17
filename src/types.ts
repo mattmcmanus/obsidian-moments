@@ -28,15 +28,13 @@ export interface Moment {
 }
 
 /**
- * An implicit moment (file created/modified without explicit date marker)
+ * An implicit moment (file modified without explicit date marker)
  */
 export interface ImplicitMoment {
 	/** Path to the file */
 	filePath: string;
 	/** File display name */
 	fileName: string;
-	/** Whether this is a creation or modification */
-	action: 'created' | 'updated';
 	/** The date this occurred */
 	date: string;
 	/** Timestamp of the action */

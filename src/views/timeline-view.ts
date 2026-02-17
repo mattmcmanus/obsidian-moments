@@ -676,7 +676,7 @@ export class TimelineView extends ItemView {
 		// Action text
 		el.createEl('span', {
 			cls: 'moments-implicit-action',
-			text: ` ${implicit.action}`,
+			text: ' Modified',
 		});
 	}
 

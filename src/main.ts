@@ -466,7 +466,7 @@ export default class MomentsPlugin extends Plugin {
 	}
 
 	/**
-	 * Get implicit moments (files created/modified without explicit moments).
+	 * Get implicit moments (files modified without explicit moments).
 	 * Results are cached and invalidated when files change.
 	 */
 	getImplicitMomentsForDisplay(
@@ -515,7 +515,6 @@ export default class MomentsPlugin extends Plugin {
 				result.get(createdDate)!.push({
 					filePath: file.path,
 					fileName: file.basename,
-					action: 'created',
 					date: createdDate,
 					timestamp: file.stat.ctime,
 				});
@@ -529,7 +528,6 @@ export default class MomentsPlugin extends Plugin {
 				result.get(modifiedDate)!.push({
 					filePath: file.path,
 					fileName: file.basename,
-					action: 'updated',
 					date: modifiedDate,
 					timestamp: file.stat.mtime,
 				});
