@@ -707,30 +707,25 @@ export class TimelineView extends ItemView {
 
 	// Public methods for filtering
 
-	setDateFilter(startDate: string | null, endDate: string | null): void {
-		debug('Setting date filter', { startDate, endDate });
-		this.filter.startDate = startDate;
-		this.filter.endDate = endDate;
-		this.filter.relatedToFile = null;
-
+	private applyFilter(updates: Partial<TimelineFilter>): void {
+		Object.assign(this.filter, updates);
 		this.updateHeader();
 		void this.renderTimeline();
+	}
+
+	setDateFilter(startDate: string | null, endDate: string | null): void {
+		debug('Setting date filter', { startDate, endDate });
+		this.applyFilter({ startDate, endDate, relatedToFile: null });
 	}
 
 	setRelatedFilter(filePath: string): void {
 		debug('Setting related filter', { filePath });
-		this.filter.relatedToFile = filePath;
-		this.filter.startDate = null;
-		this.filter.endDate = null;
-
-		this.updateHeader();
-		void this.renderTimeline();
+		this.applyFilter({ relatedToFile: filePath, startDate: null, endDate: null });
 	}
 
 	clearFilter(): void {
 		debug('Clearing filter');
-		this.filter.relatedToFile = null;
-		this.setDateFilter(null, null);
+		this.applyFilter({ startDate: null, endDate: null, relatedToFile: null });
 	}
 
 	refresh(): void {
