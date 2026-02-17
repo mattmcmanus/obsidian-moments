@@ -27,3 +27,6 @@ data.json
 coverage/
 
 demo/.obsidian
+
+# Git worktrees
+.worktrees/

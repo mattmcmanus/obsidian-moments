@@ -41,9 +41,9 @@ export interface MomentsSettings {
 	noteTemplate: string;
 
 	// Timeline settings
-	/** Auto-filter timeline when viewing periodic notes */
+	/** Auto-follow timeline when viewing periodic notes */
 	autoFilterOnPeriodicNote: boolean;
-	/** Auto-filter timeline to show related moments when viewing a note */
+	/** Auto-follow timeline to show related moments when viewing a note */
 	autoFilterRelatedMoments: boolean;
 	/** Show implicit moments (created/modified files) */
 	showImplicitMoments: boolean;

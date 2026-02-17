@@ -16,6 +16,7 @@ import {
 import {
 	scanFileForMoments,
 	isStandaloneMoment,
+	parseStandaloneFilename,
 	createStandaloneMomentFromFile,
 } from './core/moment-scanner';
 import { parseHeadingForMoment } from './core/heading-parser';
@@ -585,7 +586,13 @@ export default class MomentsPlugin extends Plugin {
 			if (periodicHandled) return;
 		}
 
-		// Try related moments filter
+		// Standalone moment: filter to that day
+		if (this.settings.autoFilterRelatedMoments) {
+			const standaloneHandled = this.handleStandaloneMomentOpen(file);
+			if (standaloneHandled) return;
+		}
+
+		// Regular notes: related moments filter
 		if (this.settings.autoFilterRelatedMoments) {
 			this.handleRelatedMomentsOpen(file);
 		}
@@ -622,14 +629,35 @@ export default class MomentsPlugin extends Plugin {
 	}
 
 	/**
+	 * Handle opening a standalone moment file - auto-filter timeline to that day.
+	 * Returns true if this was a standalone moment and was handled.
+	 */
+	private handleStandaloneMomentOpen(file: TFile): boolean {
+		if (!isStandaloneMoment(file.name)) {
+			return false;
+		}
+
+		const parsed = parseStandaloneFilename(file.name);
+		if (!parsed) {
+			return false;
+		}
+
+		debug('Auto-follow: standalone moment', { date: parsed.date });
+
+		const leaves = this.app.workspace.getLeavesOfType(TIMELINE_VIEW_TYPE);
+		for (const leaf of leaves) {
+			if (leaf.view instanceof TimelineView) {
+				leaf.view.setDateFilter(parsed.date, parsed.date);
+			}
+		}
+
+		return true;
+	}
+
+	/**
 	 * Handle opening a non-periodic note - auto-filter to related moments.
 	 */
 	private handleRelatedMomentsOpen(file: TFile): void {
-		// Skip standalone moments
-		if (isStandaloneMoment(file.name)) {
-			return;
-		}
-
 		debug('Setting related filter', { file: file.path });
 
 		// Always apply the related filter — if no moments match,

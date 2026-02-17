@@ -170,8 +170,8 @@ export class MomentsSettingTab extends PluginSettingTab {
 			.setHeading('Timeline')
 			.addSetting((setting) => {
 				setting
-					.setName('Auto-filter on periodic notes')
-					.setDesc('Automatically filter the timeline when viewing a daily, weekly, or monthly note')
+					.setName('Auto-follow periodic notes')
+					.setDesc('Automatically update the timeline when you open a daily, weekly, or monthly note')
 					.addToggle((toggle) =>
 						toggle
 							.setValue(this.plugin.settings.autoFilterOnPeriodicNote)
@@ -183,8 +183,8 @@ export class MomentsSettingTab extends PluginSettingTab {
 			})
 			.addSetting((setting) => {
 				setting
-					.setName('Auto-filter on related notes')
-					.setDesc('Automatically filter the timeline to show moments that reference the current note')
+					.setName('Auto-follow active file')
+					.setDesc('Automatically update the timeline to show moments related to the file you are viewing')
 					.addToggle((toggle) =>
 						toggle
 							.setValue(this.plugin.settings.autoFilterRelatedMoments)
