@@ -173,7 +173,7 @@ export class TimelineView extends ItemView {
 			);
 
 		new Setting(this.configPanelEl)
-			.setName('Auto-filter periodic notes')
+			.setName('Auto-follow periodic notes')
 			.addToggle((toggle) =>
 				toggle.setValue(this.plugin.settings.autoFilterOnPeriodicNote).onChange((value) => {
 					this.plugin.settings.autoFilterOnPeriodicNote = value;
@@ -182,7 +182,7 @@ export class TimelineView extends ItemView {
 			);
 
 		new Setting(this.configPanelEl)
-			.setName('Auto-filter related notes')
+			.setName('Auto-follow active file')
 			.addToggle((toggle) =>
 				toggle.setValue(this.plugin.settings.autoFilterRelatedMoments).onChange((value) => {
 					this.plugin.settings.autoFilterRelatedMoments = value;
