@@ -514,10 +514,8 @@ export class TimelineView extends ItemView {
 			this.createMomentCardShell(content, moment);
 		}
 
-		// Render implicit moments
-		for (const implicit of implicitMoments) {
-			this.renderImplicitMoment(content, implicit);
-		}
+		// Grouped implicit moments summary
+		this.renderImplicitSummary(content, implicitMoments);
 	}
 
 	/**
@@ -655,28 +653,61 @@ export class TimelineView extends ItemView {
 		}
 	}
 
-	private renderImplicitMoment(container: HTMLElement, implicit: ImplicitMoment): void {
-		const el = container.createEl('div', { cls: 'moments-implicit' });
+	private renderImplicitSummary(container: HTMLElement, implicitMoments: ImplicitMoment[]): void {
+		if (implicitMoments.length === 0) return;
 
-		// File link
-		const link = el.createEl('a', {
+		const el = container.createEl('div', { cls: 'moments-day-indicator' });
+
+		// Deduplicate file names (guard against edge cases)
+		const seen = new Set<string>();
+		const deduplicated: ImplicitMoment[] = [];
+		for (const implicit of implicitMoments) {
+			if (!seen.has(implicit.filePath)) {
+				seen.add(implicit.filePath);
+				deduplicated.push(implicit);
+			}
+		}
+
+		const fileNames = deduplicated.map((m) => m.fileName);
+
+		if (fileNames.length <= 3) {
+			// Show all names as clickable links
+			for (const [i, imp] of deduplicated.entries()) {
+				if (i > 0) {
+					el.appendText(', ');
+				}
+				this.createImplicitFileLink(el, imp);
+			}
+			el.appendText(' modified');
+		} else {
+			// Show first 2 as links + "and X more modified"
+			const first = deduplicated[0];
+			const second = deduplicated[1];
+			if (first) {
+				this.createImplicitFileLink(el, first);
+			}
+			if (second) {
+				el.appendText(', ');
+				this.createImplicitFileLink(el, second);
+			}
+			el.appendText(`, and ${fileNames.length - 2} more modified`);
+		}
+	}
+
+	private createImplicitFileLink(container: HTMLElement, implicit: ImplicitMoment): void {
+		const link = container.createEl('a', {
 			cls: 'moments-implicit-link',
 			text: implicit.fileName,
 		});
 		link.addEventListener('click', (e) => {
 			e.preventDefault();
+			e.stopPropagation();
 			const file = this.app.vault.getAbstractFileByPath(implicit.filePath);
 			if (file instanceof TFile) {
 				this.pinned = true;
 				this.updateHeader();
 				void this.app.workspace.getLeaf().openFile(file);
 			}
-		});
-
-		// Action text
-		el.createEl('span', {
-			cls: 'moments-implicit-action',
-			text: ' Modified',
 		});
 	}
 
