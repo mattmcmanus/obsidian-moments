@@ -50,6 +50,7 @@ Always run `npm run lint && npm test && npm run build` after changes.
 - Debounced file handling: 500ms batch, 300ms timeline refresh
 - Month-based timeline pagination with 12-month backwards search
 - Template integration: core Templates + Templater via typed interface augmentation
+- Auto-follow / pinned filter model: timeline follows active file by default; manual filter actions pin the filter
 - See `docs/plans/2026-02-16 - Initial Plan.md` for full architecture
 
 ## Environment & tooling
