@@ -47,9 +47,6 @@ export default class MomentsPlugin extends Plugin {
 		result: Map<string, ImplicitMoment[]>;
 	} | null = null;
 
-	/** Set by TimelineView before opening a moment to suppress auto-filter */
-	suppressNextAutoFilter = false;
-
 	// Debounced function to process pending file changes
 	private processPendingChanges = debounce(
 		() => {
@@ -583,12 +580,6 @@ export default class MomentsPlugin extends Plugin {
 	 * Handle a file being opened - dispatch to periodic or related filter.
 	 */
 	private handleFileOpen(file: TFile): void {
-		if (this.suppressNextAutoFilter) {
-			this.suppressNextAutoFilter = false;
-			debug('Auto-filter suppressed for file-open', { path: file.path });
-			return;
-		}
-
 		// Periodic note filter takes priority
 		if (this.settings.autoFilterOnPeriodicNote) {
 			const periodicHandled = this.handlePeriodicNoteOpen(file);
