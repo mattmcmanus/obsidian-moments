@@ -197,15 +197,32 @@ export class MomentsSettingTab extends PluginSettingTab {
 			.addSetting((setting) => {
 				setting
 					.setName('Show implicit moments')
-					.setDesc('Show modified files as a summary at the bottom of each day')
+					.setDesc('Show files created or modified on each day in the timeline')
 					.addToggle((toggle) =>
 						toggle
 							.setValue(this.plugin.settings.showImplicitMoments)
 							.onChange(async (value) => {
 								this.plugin.settings.showImplicitMoments = value;
 								await this.plugin.saveSettings();
+								this.display();
 							})
 					);
+			})
+			.addSetting((setting) => {
+				setting
+					.setName('Implicit moments style')
+					.setDesc('Verbose shows individual entries with created/updated labels. Summary groups them into a single line.')
+					.addDropdown((dropdown) =>
+						dropdown
+							.addOption('verbose', 'Verbose (individual entries)')
+							.addOption('summary', 'Summary (grouped)')
+							.setValue(this.plugin.settings.implicitMomentsStyle)
+							.onChange(async (value) => {
+								this.plugin.settings.implicitMomentsStyle = value as 'verbose' | 'summary';
+								await this.plugin.saveSettings();
+							})
+					);
+				setting.settingEl.toggleClass('moments-hidden', !this.plugin.settings.showImplicitMoments);
 			})
 			.addSetting((setting) => {
 				setting

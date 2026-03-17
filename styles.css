@@ -190,7 +190,18 @@
 	color: var(--text-faint);
 }
 
-/* Day Indicators (implicit summary, active file indicator) */
+/* Implicit Moments (verbose style) */
+.moments-implicit {
+	padding: 6px 12px;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+
+.moments-implicit-action {
+	color: var(--text-faint);
+}
+
+/* Day Indicators (summary style, active file indicator) */
 .moments-day-indicator {
 	padding: 4px 12px;
 	font-size: var(--font-ui-smaller);

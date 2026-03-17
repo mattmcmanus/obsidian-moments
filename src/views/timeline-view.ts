@@ -169,9 +169,26 @@ export class TimelineView extends ItemView {
 				toggle.setValue(this.plugin.settings.showImplicitMoments).onChange((value) => {
 					this.plugin.settings.showImplicitMoments = value;
 					void this.plugin.saveSettings();
+					this.rebuildConfigPanel();
 					void this.renderTimeline();
 				})
 			);
+
+		if (this.plugin.settings.showImplicitMoments) {
+			new Setting(this.configPanelEl)
+				.setName('Style')
+				.addDropdown((dropdown) =>
+					dropdown
+						.addOption('verbose', 'Verbose')
+						.addOption('summary', 'Summary')
+						.setValue(this.plugin.settings.implicitMomentsStyle)
+						.onChange((value) => {
+							this.plugin.settings.implicitMomentsStyle = value as 'verbose' | 'summary';
+							void this.plugin.saveSettings();
+							void this.renderTimeline();
+						})
+				);
+		}
 
 		new Setting(this.configPanelEl)
 			.setName('Auto-follow periodic notes')
@@ -190,6 +207,11 @@ export class TimelineView extends ItemView {
 					void this.plugin.saveSettings();
 				})
 			);
+	}
+
+	private rebuildConfigPanel(): void {
+		this.configPanelEl.empty();
+		this.buildConfigPanel();
 	}
 
 	private formatDisplayDate(dateStr: string): string {
@@ -533,8 +555,14 @@ export class TimelineView extends ItemView {
 		// Active file moments indicator (when related filter is active)
 		this.renderActiveFileIndicator(content, date);
 
-		// Grouped implicit moments summary
-		this.renderImplicitSummary(content, implicitMoments);
+		// Implicit moments (verbose or summary based on setting)
+		if (this.plugin.settings.implicitMomentsStyle === 'verbose') {
+			for (const implicit of implicitMoments) {
+				this.renderImplicitMoment(content, implicit);
+			}
+		} else {
+			this.renderImplicitSummary(content, implicitMoments);
+		}
 	}
 
 	/**
@@ -670,6 +698,31 @@ export class TimelineView extends ItemView {
 				this.contentCache.delete(key);
 			}
 		}
+	}
+
+	private renderImplicitMoment(container: HTMLElement, implicit: ImplicitMoment): void {
+		const el = container.createEl('div', { cls: 'moments-implicit' });
+
+		// File link
+		const link = el.createEl('a', {
+			cls: 'moments-implicit-link',
+			text: implicit.fileName,
+		});
+		link.addEventListener('click', (e) => {
+			e.preventDefault();
+			const file = this.app.vault.getAbstractFileByPath(implicit.filePath);
+			if (file instanceof TFile) {
+				this.pinned = true;
+				this.updateHeader();
+				void this.app.workspace.getLeaf().openFile(file);
+			}
+		});
+
+		// Action text
+		el.createEl('span', {
+			cls: 'moments-implicit-action',
+			text: ` ${implicit.action}`,
+		});
 	}
 
 	private renderImplicitSummary(container: HTMLElement, implicitMoments: ImplicitMoment[]): void {

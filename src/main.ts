@@ -523,6 +523,7 @@ export default class MomentsPlugin extends Plugin {
 				result.get(createdDate)!.push({
 					filePath: file.path,
 					fileName: file.basename,
+					action: 'created',
 					date: createdDate,
 					timestamp: file.stat.ctime,
 				});
@@ -536,6 +537,7 @@ export default class MomentsPlugin extends Plugin {
 				result.get(modifiedDate)!.push({
 					filePath: file.path,
 					fileName: file.basename,
+					action: 'updated',
 					date: modifiedDate,
 					timestamp: file.stat.mtime,
 				});
