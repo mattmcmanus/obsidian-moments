@@ -8,16 +8,23 @@ export const DEFAULT_DATE_FORMAT = 'YYYY-MM-DD';
 
 /**
  * Convert moment-style format tokens to date-fns tokens.
- * YYYY → yyyy, DD → dd (MM is the same in both).
+ * YYYY → yyyy, YY → yy, DD → dd (MM is the same in both).
+ *
+ * YYYY is replaced before YY so the four-digit token is not mistaken
+ * for two two-digit ones. date-fns treats bare YY/YYYY as week-numbering
+ * year tokens and throws, so every year token must be lower-cased.
  */
 function toFnsFormat(format: string): string {
-	return format.replace('YYYY', 'yyyy').replace('DD', 'dd');
+	return format
+		.replace(/YYYY/g, 'yyyy')
+		.replace(/YY/g, 'yy')
+		.replace(/DD/g, 'dd');
 }
 
 /**
  * Format a Date object as a string using the given format.
  *
- * Supported tokens: YYYY (year), MM (month), DD (day)
+ * Supported tokens: YYYY (4-digit year), YY (2-digit year), MM (month), DD (day)
  */
 export function formatDate(date: Date, format: string = DEFAULT_DATE_FORMAT): string {
 	return fnsFormat(date, toFnsFormat(format));
@@ -32,7 +39,9 @@ export function parseDate(dateString: string, format: string = DEFAULT_DATE_FORM
 	if (!dateString) return null;
 
 	const fmtStr = toFnsFormat(format);
-	const date = fnsParse(dateString, fmtStr, new Date(0));
+	// Use the current date as the reference so a 2-digit year (YY)
+	// resolves into the present century rather than the 1900s.
+	const date = fnsParse(dateString, fmtStr, new Date());
 
 	if (!isValid(date)) return null;
 

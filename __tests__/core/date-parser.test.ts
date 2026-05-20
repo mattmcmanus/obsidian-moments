@@ -72,3 +72,24 @@ describe('parseDate', () => {
 		expect(parseDate('02-04-2026', 'YYYY-MM-DD')).toBeNull();
 	});
 });
+
+describe('two-digit year (YY) format', () => {
+	it('formats a date with YY.MM.DD format', () => {
+		const date = new Date(2026, 4, 20); // May 20, 2026
+		expect(formatDate(date, 'YY.MM.DD')).toBe('26.05.20');
+	});
+
+	it('parses a YY.MM.DD date into the current century', () => {
+		// Round-trip today's date: a 2-digit year must resolve to the
+		// current century, not the 1900s (the date-fns reference-date trap).
+		const today = new Date();
+		const result = parseDate(formatDate(today, 'YY.MM.DD'), 'YY.MM.DD');
+		expect(result?.getFullYear()).toBe(today.getFullYear());
+		expect(result?.getMonth()).toBe(today.getMonth());
+		expect(result?.getDate()).toBe(today.getDate());
+	});
+
+	it('returns null for an invalid YY.MM.DD date', () => {
+		expect(parseDate('26.13.20', 'YY.MM.DD')).toBeNull(); // Invalid month
+	});
+});
