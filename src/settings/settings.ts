@@ -2,6 +2,7 @@ import type {
 	InsertPosition,
 	TargetSectionMode,
 	DateLinkStyle,
+	ImplicitMomentsStyle,
 	TimelineViewMode,
 } from '../types';
 import {
@@ -47,6 +48,8 @@ export interface MomentsSettings {
 	autoFilterRelatedMoments: boolean;
 	/** Show implicit moments (created/modified files) */
 	showImplicitMoments: boolean;
+	/** Display style for implicit moments */
+	implicitMomentsStyle: ImplicitMomentsStyle;
 	/** Open timeline on startup */
 	openOnStartup: boolean;
 	/** Default view mode: "sidebar" or "tab" */
@@ -80,6 +83,7 @@ export const DEFAULT_SETTINGS: MomentsSettings = {
 	autoFilterOnPeriodicNote: true,
 	autoFilterRelatedMoments: true,
 	showImplicitMoments: true,
+	implicitMomentsStyle: 'summary',
 	openOnStartup: false,
 	defaultViewMode: 'sidebar',
 

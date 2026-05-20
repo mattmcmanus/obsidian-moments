@@ -59,6 +59,11 @@ export type TargetSectionMode = 'none' | 'specified';
 export type DateLinkStyle = 'wikilink' | 'plain';
 
 /**
+ * Display style for implicit moments in the timeline
+ */
+export type ImplicitMomentsStyle = 'verbose' | 'summary';
+
+/**
  * Default view mode for timeline
  */
 export type TimelineViewMode = 'sidebar' | 'tab';

@@ -50,3 +50,31 @@ export function groupMomentsByDate(moments: Moment[]): Map<string, Moment[]> {
 
 	return grouped;
 }
+
+/**
+ * Format a grouped summary of implicit (modified) files for a day.
+ * Shows up to 3 names; if more, shows 2 names + "and X more".
+ *
+ * @param fileNames - Array of file display names
+ * @returns Formatted summary string, or empty string if no files
+ */
+export function formatImplicitSummary(fileNames: string[]): string {
+	if (fileNames.length === 0) return '';
+	if (fileNames.length <= 3) {
+		return `${fileNames.join(', ')} modified`;
+	}
+	const visible = fileNames.slice(0, 2);
+	const remaining = fileNames.length - 2;
+	return `${visible.join(', ')}, and ${remaining} more modified`;
+}
+
+/**
+ * Format the active file moments indicator for a day.
+ *
+ * @param count - Number of moments in the active file on this day
+ * @param fileName - Display name of the active file
+ * @returns Formatted indicator string (e.g., "3 moments in Project Alpha")
+ */
+export function formatActiveFileIndicator(count: number, fileName: string): string {
+	return `${count} ${count === 1 ? 'moment' : 'moments'} in ${fileName}`;
+}

@@ -9,6 +9,7 @@ import {
 	createMomentCache,
 	addMomentToCache,
 	removeMomentsForFile,
+	getMomentsForFile,
 	getMomentsInDateRange,
 	hasExplicitMoments,
 	getAllDatesWithMoments,
@@ -424,6 +425,13 @@ export default class MomentsPlugin extends Plugin {
 	}
 
 	/**
+	 * Get all moments belonging to a specific file (for active file indicator).
+	 */
+	getMomentsForActiveFile(filePath: string): Moment[] {
+		return getMomentsForFile(this.momentCache, filePath);
+	}
+
+	/**
 	 * Get moments for display in the timeline.
 	 */
 	getMomentsForDisplay(filter: TimelineFilter): Moment[] {
@@ -466,7 +474,7 @@ export default class MomentsPlugin extends Plugin {
 	}
 
 	/**
-	 * Get implicit moments (files created/modified without explicit moments).
+	 * Get implicit moments (files modified without explicit moments).
 	 * Results are cached and invalidated when files change.
 	 */
 	getImplicitMomentsForDisplay(

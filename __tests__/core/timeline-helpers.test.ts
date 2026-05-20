@@ -1,4 +1,10 @@
-import { getPreviousMonth, getDatesForMonth, groupMomentsByDate } from '../../src/core/timeline-helpers';
+import {
+	getPreviousMonth,
+	getDatesForMonth,
+	groupMomentsByDate,
+	formatImplicitSummary,
+	formatActiveFileIndicator,
+} from '../../src/core/timeline-helpers';
 import type { Moment } from '../../src/types';
 
 function createTestMoment(overrides: Partial<Moment> = {}): Moment {
@@ -101,5 +107,47 @@ describe('groupMomentsByDate', () => {
 		const grouped = groupMomentsByDate([]);
 
 		expect(grouped.size).toBe(0);
+	});
+});
+
+describe('formatImplicitSummary', () => {
+	it('returns empty string for no files', () => {
+		expect(formatImplicitSummary([])).toBe('');
+	});
+
+	it('formats a single file', () => {
+		expect(formatImplicitSummary(['Note A'])).toBe('Note A modified');
+	});
+
+	it('formats two files', () => {
+		expect(formatImplicitSummary(['Note A', 'Note B'])).toBe('Note A, Note B modified');
+	});
+
+	it('formats three files without truncation', () => {
+		expect(formatImplicitSummary(['Note A', 'Note B', 'Note C']))
+			.toBe('Note A, Note B, Note C modified');
+	});
+
+	it('truncates four or more files to two visible names', () => {
+		expect(formatImplicitSummary(['Note A', 'Note B', 'Note C', 'Note D']))
+			.toBe('Note A, Note B, and 2 more modified');
+	});
+
+	it('truncates many files correctly', () => {
+		const files = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+		expect(formatImplicitSummary(files))
+			.toBe('A, B, and 5 more modified');
+	});
+});
+
+describe('formatActiveFileIndicator', () => {
+	it('formats singular moment count', () => {
+		expect(formatActiveFileIndicator(1, 'Project Alpha'))
+			.toBe('1 moment in Project Alpha');
+	});
+
+	it('formats plural moment count', () => {
+		expect(formatActiveFileIndicator(3, 'Project Alpha'))
+			.toBe('3 moments in Project Alpha');
 	});
 });

@@ -5,7 +5,7 @@ import { TIMELINE_VIEW_TYPE } from '../constants';
 import { formatDate } from '../core/date-parser';
 import { extractContentUnderHeading } from '../core/content-extractor';
 import { debug, debugTimed } from '../utils/debug';
-import { getPreviousMonth, getDatesForMonth, groupMomentsByDate } from '../core/timeline-helpers';
+import { getPreviousMonth, getDatesForMonth, groupMomentsByDate, formatActiveFileIndicator } from '../core/timeline-helpers';
 
 /**
  * Timeline view displaying moments grouped by day.
@@ -36,6 +36,7 @@ export class TimelineView extends ItemView {
 	private allMoments: Moment[] = [];
 	private groupedByDate: Map<string, Moment[]> = new Map();
 	private allImplicitByDate: Map<string, ImplicitMoment[]> = new Map();
+	private activeFileMomentsByDate = new Map<string, Moment[]>();
 
 	// Content cache: avoids re-reading files on every render
 	private contentCache: Map<string, string> = new Map();
@@ -168,9 +169,26 @@ export class TimelineView extends ItemView {
 				toggle.setValue(this.plugin.settings.showImplicitMoments).onChange((value) => {
 					this.plugin.settings.showImplicitMoments = value;
 					void this.plugin.saveSettings();
+					this.rebuildConfigPanel();
 					void this.renderTimeline();
 				})
 			);
+
+		if (this.plugin.settings.showImplicitMoments) {
+			new Setting(this.configPanelEl)
+				.setName('Style')
+				.addDropdown((dropdown) =>
+					dropdown
+						.addOption('verbose', 'Verbose')
+						.addOption('summary', 'Summary')
+						.setValue(this.plugin.settings.implicitMomentsStyle)
+						.onChange((value) => {
+							this.plugin.settings.implicitMomentsStyle = value as 'verbose' | 'summary';
+							void this.plugin.saveSettings();
+							void this.renderTimeline();
+						})
+				);
+		}
 
 		new Setting(this.configPanelEl)
 			.setName('Auto-follow periodic notes')
@@ -189,6 +207,11 @@ export class TimelineView extends ItemView {
 					void this.plugin.saveSettings();
 				})
 			);
+	}
+
+	private rebuildConfigPanel(): void {
+		this.configPanelEl.empty();
+		this.buildConfigPanel();
 	}
 
 	private formatDisplayDate(dateStr: string): string {
@@ -217,6 +240,17 @@ export class TimelineView extends ItemView {
 			);
 		}
 
+		// Group active file's own moments by day (for indicator when related filter is active)
+		this.activeFileMomentsByDate = new Map<string, Moment[]>();
+		if (this.filter.relatedToFile) {
+			const activeFileMoments = this.plugin.getMomentsForActiveFile(this.filter.relatedToFile);
+			for (const m of activeFileMoments) {
+				const existing = this.activeFileMomentsByDate.get(m.date) ?? [];
+				existing.push(m);
+				this.activeFileMomentsByDate.set(m.date, existing);
+			}
+		}
+
 		// Build a fingerprint from moment data to detect changes
 		const fingerprint = this.computeFingerprint(moments, implicitByDate);
 		if (!force && fingerprint === this.lastRenderFingerprint) {
@@ -242,7 +276,7 @@ export class TimelineView extends ItemView {
 		this.allImplicitByDate = implicitByDate;
 
 		// Get all dates
-		const allDates = new Set([...this.groupedByDate.keys(), ...this.allImplicitByDate.keys()]);
+		const allDates = new Set([...this.groupedByDate.keys(), ...this.allImplicitByDate.keys(), ...this.activeFileMomentsByDate.keys()]);
 
 		debug('Timeline data loaded', {
 			explicitMoments: this.allMoments.length,
@@ -292,6 +326,10 @@ export class TimelineView extends ItemView {
 		// Implicit fingerprint: count per date
 		for (const [date, items] of implicitByDate) {
 			parts.push(`i:${date}:${items.length}`);
+		}
+		// Active file indicator fingerprint
+		for (const [date, moments] of this.activeFileMomentsByDate) {
+			parts.push(`a:${date}:${moments.length}`);
 		}
 		return parts.join('|');
 	}
@@ -355,7 +393,7 @@ export class TimelineView extends ItemView {
 		const prevMonthStr = getPreviousMonth(this.oldestLoadedMonth);
 
 		// Check if there are any dates older than our oldest loaded month
-		const allDates = new Set([...this.groupedByDate.keys(), ...this.allImplicitByDate.keys()]);
+		const allDates = new Set([...this.groupedByDate.keys(), ...this.allImplicitByDate.keys(), ...this.activeFileMomentsByDate.keys()]);
 		const hasOlderDates = Array.from(allDates).some((date) => date < this.oldestLoadedMonth!);
 
 		if (!hasOlderDates) {
@@ -514,9 +552,16 @@ export class TimelineView extends ItemView {
 			this.createMomentCardShell(content, moment);
 		}
 
-		// Render implicit moments
-		for (const implicit of implicitMoments) {
-			this.renderImplicitMoment(content, implicit);
+		// Active file moments indicator (when related filter is active)
+		this.renderActiveFileIndicator(content, date);
+
+		// Implicit moments (verbose or summary based on setting)
+		if (this.plugin.settings.implicitMomentsStyle === 'verbose') {
+			for (const implicit of implicitMoments) {
+				this.renderImplicitMoment(content, implicit);
+			}
+		} else {
+			this.renderImplicitSummary(content, implicitMoments);
 		}
 	}
 
@@ -677,6 +722,86 @@ export class TimelineView extends ItemView {
 		el.createEl('span', {
 			cls: 'moments-implicit-action',
 			text: ` ${implicit.action}`,
+		});
+	}
+
+	private renderImplicitSummary(container: HTMLElement, implicitMoments: ImplicitMoment[]): void {
+		if (implicitMoments.length === 0) return;
+
+		const el = container.createEl('div', { cls: 'moments-day-indicator' });
+
+		// Deduplicate file names (guard against edge cases)
+		const seen = new Set<string>();
+		const deduplicated: ImplicitMoment[] = [];
+		for (const implicit of implicitMoments) {
+			if (!seen.has(implicit.filePath)) {
+				seen.add(implicit.filePath);
+				deduplicated.push(implicit);
+			}
+		}
+
+		const fileNames = deduplicated.map((m) => m.fileName);
+
+		if (fileNames.length <= 3) {
+			// Show all names as clickable links
+			for (const [i, imp] of deduplicated.entries()) {
+				if (i > 0) {
+					el.appendText(', ');
+				}
+				this.createImplicitFileLink(el, imp);
+			}
+			el.appendText(' modified');
+		} else {
+			// Show first 2 as links + "and X more modified"
+			const first = deduplicated[0];
+			const second = deduplicated[1];
+			if (first) {
+				this.createImplicitFileLink(el, first);
+			}
+			if (second) {
+				el.appendText(', ');
+				this.createImplicitFileLink(el, second);
+			}
+			el.appendText(`, and ${fileNames.length - 2} more modified`);
+		}
+	}
+
+	private renderActiveFileIndicator(container: HTMLElement, date: string): void {
+		const moments = this.activeFileMomentsByDate.get(date);
+		if (!moments?.length || !this.filter.relatedToFile) return;
+
+		const file = this.app.vault.getAbstractFileByPath(this.filter.relatedToFile);
+		if (!(file instanceof TFile)) return;
+
+		const text = formatActiveFileIndicator(moments.length, file.basename);
+		const el = container.createEl('div', { cls: 'moments-day-indicator' });
+		const link = el.createEl('a', {
+			cls: 'moments-implicit-link',
+			text,
+		});
+		const firstMoment = moments[0];
+		if (!firstMoment) return;
+		link.addEventListener('click', (e) => {
+			e.preventDefault();
+			// Open the file and scroll to the first moment for this day
+			void this.openMoment(firstMoment);
+		});
+	}
+
+	private createImplicitFileLink(container: HTMLElement, implicit: ImplicitMoment): void {
+		const link = container.createEl('a', {
+			cls: 'moments-implicit-link',
+			text: implicit.fileName,
+		});
+		link.addEventListener('click', (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			const file = this.app.vault.getAbstractFileByPath(implicit.filePath);
+			if (file instanceof TFile) {
+				this.pinned = true;
+				this.updateHeader();
+				void this.app.workspace.getLeaf().openFile(file);
+			}
 		});
 	}
 
