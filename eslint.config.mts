@@ -64,6 +64,13 @@ export default tseslint.config(
 			"@typescript-eslint/no-unsafe-assignment": "off",
 			"@typescript-eslint/no-unsafe-call": "off",
 			"@typescript-eslint/no-unsafe-member-access": "off",
+			// The obsidian mock must import the real `moment` package: it
+			// cannot import from `obsidian` (it is the obsidian mock), and
+			// `moment` is intentionally not a declared dependency — Obsidian
+			// provides it at runtime. These rules police plugin source, not
+			// test code.
+			"no-restricted-imports": "off",
+			"import/no-extraneous-dependencies": "off",
 		},
 	},
 );
