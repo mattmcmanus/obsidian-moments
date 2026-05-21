@@ -45,9 +45,13 @@ export function createStandaloneMoment(
 	app: App,
 	settings: MomentsSettings
 ): void {
+	const defaultFolder =
+		settings.standaloneFolder || getNewNoteFolderPath(app);
+
 	new MomentModal(app, {
 		title: 'Create new moment note',
 		dateFormat: settings.dateFormat,
+		folderField: { defaultValue: defaultFolder },
 		onSubmit: async (result) => {
 			try {
 				const { file, existed } = await createStandaloneNote(
@@ -56,7 +60,7 @@ export function createStandaloneMoment(
 					{
 						title: result.title,
 						date: result.date,
-						folder: getNewNoteFolderPath(app),
+						folder: result.folder ?? defaultFolder,
 					}
 				);
 
