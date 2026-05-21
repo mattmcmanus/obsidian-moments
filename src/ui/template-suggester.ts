@@ -1,5 +1,6 @@
 import { App, FuzzySuggestModal, TFile, TFolder, normalizePath } from 'obsidian';
 import { getCommunityPlugin, getInternalPlugin } from '../utils/obsidian-helpers';
+import { evaluateCoreTemplate } from '../core/template-engine';
 
 /**
  * Get the templates folder path from core Templates plugin or Templater.
@@ -75,9 +76,28 @@ export async function applyTemplate(app: App, file: TFile, templateFile: TFile):
 		}
 	}
 
-	// Fallback: read template content and write to file
+	// Fallback: read the template, evaluate core Templates placeholders
+	// ({{title}}, {{date}}, {{time}}), and write the result to the file.
 	const templateContent = await app.vault.read(templateFile);
-	await app.vault.modify(file, templateContent);
+	const { dateFormat, timeFormat } = getCoreTemplateFormats(app);
+	const evaluated = evaluateCoreTemplate(templateContent, {
+		title: file.basename,
+		dateFormat,
+		timeFormat,
+	});
+	await app.vault.modify(file, evaluated);
+}
+
+/**
+ * Read the date/time formats configured for the core Templates plugin,
+ * falling back to its defaults when unset.
+ */
+function getCoreTemplateFormats(app: App): { dateFormat: string; timeFormat: string } {
+	const options = getInternalPlugin(app, 'templates')?.instance?.options;
+	return {
+		dateFormat: (options?.['dateFormat'] as string) || 'YYYY-MM-DD',
+		timeFormat: (options?.['timeFormat'] as string) || 'HH:mm',
+	};
 }
 
 /**
