@@ -1,8 +1,7 @@
-import { App, Notice, normalizePath } from 'obsidian';
+import { App, Notice } from 'obsidian';
 import type { MomentsSettings } from '../settings/settings';
 import { MomentModal } from '../ui/moment-modal';
-import { buildFilename, renderTemplate } from '../core/template-engine';
-import type { TemplateVariables } from '../core/template-engine';
+import { createStandaloneNote } from './standalone-note';
 import {
 	hasTemplatesAvailable,
 	TemplateSuggesterModal,
@@ -17,8 +16,12 @@ function getNewNoteFolderPath(app: App): string {
 	const vault = app.vault as App['vault'] & {
 		getConfig(key: string): unknown;
 	};
-	const newFileLocation = vault.getConfig('newFileLocation') as string | undefined;
-	const newFileFolderPath = vault.getConfig('newFileFolderPath') as string | undefined;
+	const newFileLocation = vault.getConfig('newFileLocation') as
+		| string
+		| undefined;
+	const newFileFolderPath = vault.getConfig('newFileFolderPath') as
+		| string
+		| undefined;
 
 	if (newFileLocation === 'folder' && newFileFolderPath) {
 		return newFileFolderPath;
@@ -42,46 +45,28 @@ export function createStandaloneMoment(
 	app: App,
 	settings: MomentsSettings
 ): void {
-	// Open the moment modal
 	new MomentModal(app, {
 		title: 'Create new moment note',
 		dateFormat: settings.dateFormat,
 		onSubmit: async (result) => {
 			try {
-				// Build template variables
-				const templateVars: TemplateVariables = {
-					date: result.date,
-					title: result.title || null,
-				};
+				const { file, existed } = await createStandaloneNote(
+					app,
+					settings,
+					{
+						title: result.title,
+						date: result.date,
+						folder: getNewNoteFolderPath(app),
+					}
+				);
 
-				// Build filename
-				const filename = buildFilename(templateVars, settings.filenameTemplate);
+				await app.workspace.getLeaf().openFile(file);
 
-				// Get folder path
-				const folderPath = getNewNoteFolderPath(app);
-				const fullPath = normalizePath(folderPath ? `${folderPath}/${filename}` : filename);
-
-				// Check if file already exists
-				const existingFile = app.vault.getFileByPath(fullPath);
-				if (existingFile) {
-					new Notice(`File already exists: ${filename}`);
-					await app.workspace.getLeaf().openFile(existingFile);
+				if (existed) {
+					new Notice(`File already exists: ${file.name}`);
 					return;
 				}
 
-				// Build initial content from plugin settings (if no template will be applied)
-				let content = '';
-				if (settings.noteTemplate) {
-					content = renderTemplate(settings.noteTemplate, templateVars);
-				}
-
-				// Create the file
-				const file = await app.vault.create(fullPath, content);
-
-				// Open the new file
-				await app.workspace.getLeaf().openFile(file);
-
-				// If templates are available, offer to apply one
 				if (hasTemplatesAvailable(app)) {
 					new TemplateSuggesterModal(app, (templateFile) => {
 						if (templateFile) {
@@ -90,7 +75,10 @@ export function createStandaloneMoment(
 									new Notice('Moment note created with template');
 								})
 								.catch((error: unknown) => {
-									console.error('Moments: Failed to apply template:', error);
+									console.error(
+										'Moments: Failed to apply template:',
+										error
+									);
 									new Notice('Failed to apply template');
 								});
 						} else {
