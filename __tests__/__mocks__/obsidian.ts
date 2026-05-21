@@ -13,3 +13,31 @@ const resolved = momentImport as unknown as { default?: unknown };
 export const moment = (
 	typeof resolved.default === 'function' ? resolved.default : momentImport
 ) as typeof import('moment');
+
+/**
+ * Minimal `Notice` stand-in — records the message, performs no UI.
+ */
+export class Notice {
+	message: string | DocumentFragment;
+	constructor(message: string | DocumentFragment) {
+		this.message = message;
+	}
+	setMessage(message: string | DocumentFragment): this {
+		this.message = message;
+		return this;
+	}
+	hide(): void {
+		/* no-op in tests */
+	}
+}
+
+/**
+ * Test stand-in for Obsidian's `normalizePath`: collapse duplicate slashes
+ * and strip leading/trailing slashes.
+ */
+export function normalizePath(path: string): string {
+	return path
+		.replace(/[\\/]+/g, '/')
+		.replace(/^\/+|\/+$/g, '')
+		.trim();
+}
