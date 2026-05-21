@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-moments",
-	"version": "0.3.0",
+	"version": "0.3.1",
 	"description": "Unify date-based note-taking with inline moments, standalone dated notes, and a chronological timeline view.",
 	"main": "main.js",
 	"type": "module",
