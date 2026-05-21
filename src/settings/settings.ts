@@ -40,6 +40,8 @@ export interface MomentsSettings {
 	filenameTemplate: string;
 	/** Template for note content */
 	noteTemplate: string;
+	/** Default folder for new standalone moment notes ('' = use Obsidian's location) */
+	standaloneFolder: string;
 
 	// Timeline settings
 	/** Auto-follow timeline when viewing periodic notes */
@@ -78,6 +80,7 @@ export const DEFAULT_SETTINGS: MomentsSettings = {
 	// Standalone moment settings
 	filenameTemplate: DEFAULT_FILENAME_TEMPLATE,
 	noteTemplate: '',
+	standaloneFolder: '',
 
 	// Timeline settings
 	autoFilterOnPeriodicNote: true,
