@@ -60,7 +60,7 @@ export function createStandaloneMoment(
 					{
 						title: result.title,
 						date: result.date,
-						folder: result.folder ?? defaultFolder,
+						folder: result.folder || defaultFolder,
 					}
 				);
 

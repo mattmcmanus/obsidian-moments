@@ -26,7 +26,6 @@ export class FolderSuggest extends AbstractInputSuggest<TFolder> {
 	selectSuggestion(folder: TFolder): void {
 		const value = folder.isRoot() ? '' : folder.path;
 		this.setValue(value);
-		this.inputEl.value = value;
 		this.inputEl.dispatchEvent(new Event('input'));
 		this.close();
 	}

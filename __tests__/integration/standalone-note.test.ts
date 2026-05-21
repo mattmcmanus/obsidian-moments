@@ -90,4 +90,35 @@ describe('createStandaloneNote', () => {
 
 		expect(createdFiles.map((f) => f.content)).toEqual(['']);
 	});
+
+	it('normalizes a trailing slash on the folder path', async () => {
+		const { app, createdFiles, createdFolders } = createFakeApp({
+			existingFolders: ['Journal'],
+		});
+
+		await createStandaloneNote(app, settings(), {
+			...result,
+			folder: 'Journal/',
+		});
+
+		// The existing folder is matched — no redundant create.
+		expect(createdFolders).toEqual([]);
+		expect(createdFiles.map((f) => f.path)).toEqual([
+			'Journal/2026-05-21 - Test.md',
+		]);
+	});
+
+	it('treats a whitespace-only folder as the vault root', async () => {
+		const { app, createdFiles, createdFolders } = createFakeApp();
+
+		await createStandaloneNote(app, settings(), {
+			...result,
+			folder: '   ',
+		});
+
+		expect(createdFolders).toEqual([]);
+		expect(createdFiles.map((f) => f.path)).toEqual([
+			'2026-05-21 - Test.md',
+		]);
+	});
 });

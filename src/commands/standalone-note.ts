@@ -31,7 +31,10 @@ export async function createStandaloneNote(
 	};
 
 	const filename = buildFilename(templateVars, settings.filenameTemplate);
-	const folder = result.folder.trim();
+	const trimmedFolder = result.folder.trim();
+	// Normalize so folder lookups match Obsidian's internal index (e.g. a
+	// trailing slash on 'Journal/' would otherwise miss the existing folder).
+	const folder = trimmedFolder ? normalizePath(trimmedFolder) : '';
 	const fullPath = normalizePath(folder ? `${folder}/${filename}` : filename);
 
 	const existing = app.vault.getFileByPath(fullPath);

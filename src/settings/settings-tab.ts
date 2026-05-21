@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, SettingGroup } from 'obsidian';
+import { App, PluginSettingTab, SettingGroup, normalizePath } from 'obsidian';
 import type MomentsPlugin from '../main';
 import { FolderSuggest } from '../ui/folder-suggest';
 
@@ -148,7 +148,10 @@ export class MomentsSettingTab extends PluginSettingTab {
 							.setPlaceholder('Journal')
 							.setValue(this.plugin.settings.standaloneFolder)
 							.onChange(async (value) => {
-								this.plugin.settings.standaloneFolder = value.trim();
+								const trimmed = value.trim();
+								this.plugin.settings.standaloneFolder = trimmed
+									? normalizePath(trimmed)
+									: '';
 								await this.plugin.saveSettings();
 							});
 						new FolderSuggest(this.app, text.inputEl);
