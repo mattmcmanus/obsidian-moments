@@ -61,7 +61,6 @@
 
 .moments-config-panel {
 	display: none;
-	border-top: 1px solid var(--background-modifier-border);
 	padding-top: 8px;
 }
 
@@ -72,6 +71,14 @@
 .moments-config-panel .setting-item {
 	padding: 4px 0;
 	border: none;
+}
+
+/* Keep the style dropdown compact so its row matches the toggle rows */
+.moments-config-panel .dropdown {
+	height: auto;
+	min-height: 0;
+	padding-block: 2px;
+	font-size: var(--font-ui-small);
 }
 
 /* Timeline Content */

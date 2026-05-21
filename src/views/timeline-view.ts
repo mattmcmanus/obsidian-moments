@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, TFile, MarkdownRenderer, Menu, MarkdownView, Setting, setIcon } from 'obsidian';
+import { ItemView, WorkspaceLeaf, TFile, MarkdownRenderer, Menu, MarkdownView, SettingGroup, setIcon } from 'obsidian';
 import type MomentsPlugin from '../main';
 import type { Moment, ImplicitMoment, TimelineFilter } from '../types';
 import { TIMELINE_VIEW_TYPE } from '../constants';
@@ -164,9 +164,12 @@ export class TimelineView extends ItemView {
 	}
 
 	private buildConfigPanel(): void {
-		new Setting(this.configPanelEl)
-			.setName('Implicit moments')
-			.addToggle((toggle) =>
+		// Render all options inside a single SettingGroup so they appear as one
+		// cohesive group rather than separate items.
+		const group = new SettingGroup(this.configPanelEl);
+
+		group.addSetting((setting) => {
+			setting.setName('Implicit moments').addToggle((toggle) =>
 				toggle.setValue(this.plugin.settings.showImplicitMoments).onChange((value) => {
 					this.plugin.settings.showImplicitMoments = value;
 					void this.plugin.saveSettings();
@@ -174,11 +177,11 @@ export class TimelineView extends ItemView {
 					void this.renderTimeline();
 				})
 			);
+		});
 
 		if (this.plugin.settings.showImplicitMoments) {
-			new Setting(this.configPanelEl)
-				.setName('Style')
-				.addDropdown((dropdown) =>
+			group.addSetting((setting) => {
+				setting.setName('Style').addDropdown((dropdown) =>
 					dropdown
 						.addOption('verbose', 'Verbose')
 						.addOption('summary', 'Summary')
@@ -189,25 +192,26 @@ export class TimelineView extends ItemView {
 							void this.renderTimeline();
 						})
 				);
+			});
 		}
 
-		new Setting(this.configPanelEl)
-			.setName('Auto-follow periodic notes')
-			.addToggle((toggle) =>
+		group.addSetting((setting) => {
+			setting.setName('Auto-follow periodic notes').addToggle((toggle) =>
 				toggle.setValue(this.plugin.settings.autoFilterOnPeriodicNote).onChange((value) => {
 					this.plugin.settings.autoFilterOnPeriodicNote = value;
 					void this.plugin.saveSettings();
 				})
 			);
+		});
 
-		new Setting(this.configPanelEl)
-			.setName('Auto-follow active file')
-			.addToggle((toggle) =>
+		group.addSetting((setting) => {
+			setting.setName('Auto-follow active file').addToggle((toggle) =>
 				toggle.setValue(this.plugin.settings.autoFilterRelatedMoments).onChange((value) => {
 					this.plugin.settings.autoFilterRelatedMoments = value;
 					void this.plugin.saveSettings();
 				})
 			);
+		});
 	}
 
 	private rebuildConfigPanel(): void {
@@ -318,6 +322,7 @@ export class TimelineView extends ItemView {
 		const parts: string[] = [
 			String(moments.length),
 			this.plugin.settings.showImplicitMoments ? '1' : '0',
+			this.plugin.settings.implicitMomentsStyle,
 			this.filter.startDate ?? '',
 			this.filter.endDate ?? '',
 			this.filter.relatedToFile ?? '',
