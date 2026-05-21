@@ -76,31 +76,29 @@ Moments works independently but respects your existing setup:
 
 ## Installation
 
-### Using BRAT (recommended while awaiting community plugin approval)
-
-[BRAT](https://tfthacker.com/BRAT) (Beta Reviewers Auto-update Tester) lets you install plugins directly from GitHub — no need to wait for community plugin approval.
-
-1. Install **BRAT** from **Settings** → **Community plugins** → **Browse** → search "BRAT"
-2. Open **Settings** → **BRAT** → **Add Beta plugin**
-3. Enter `mattmcmanus/obsidian-moments` and select **Add Plugin**
-4. Enable **Moments** in **Settings** → **Community plugins**
-
-BRAT will automatically notify you when updates are available.
-
-### From Obsidian Community Plugins
-
-> **Note:** Moments is pending approval in the Obsidian community plugin directory. Use BRAT in the meantime.
+### From Obsidian community plugins (recommended)
 
 1. Open **Settings** → **Community plugins**
 2. Select **Browse** and search for "Moments"
 3. Select **Install**, then **Enable**
 
-### Manual Installation
+You can also open the [plugin page in the community directory](https://community.obsidian.md/plugins/moments).
+
+### Manual installation
 
 1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/mattmcmanus/obsidian-moments/releases/latest)
 2. Create a folder: `<your-vault>/.obsidian/plugins/moments/`
 3. Copy the downloaded files into this folder
 4. Reload Obsidian and enable the plugin in **Settings** → **Community plugins**
+
+### Using BRAT (beta builds)
+
+[BRAT](https://tfthacker.com/BRAT) (Beta Reviewers Auto-update Tester) installs pre-release builds straight from GitHub — useful for testing changes before they reach the community directory.
+
+1. Install **BRAT** from **Settings** → **Community plugins** → **Browse** → search "BRAT"
+2. Open **Settings** → **BRAT** → **Add Beta plugin**
+3. Enter `mattmcmanus/obsidian-moments` and select **Add Plugin**
+4. Enable **Moments** in **Settings** → **Community plugins**
 
 ## Settings
 
