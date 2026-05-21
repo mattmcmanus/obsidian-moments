@@ -5,7 +5,7 @@ import { TIMELINE_VIEW_TYPE } from '../constants';
 import { formatDate } from '../core/date-parser';
 import { extractContentUnderHeading } from '../core/content-extractor';
 import { debug, debugTimed } from '../utils/debug';
-import { getPreviousMonth, getDatesForMonth, groupMomentsByDate, formatActiveFileIndicator } from '../core/timeline-helpers';
+import { getPreviousMonth, groupMomentsByDate, formatActiveFileIndicator, findMonthWithDates, hasDatesBefore } from '../core/timeline-helpers';
 
 /**
  * Timeline view displaying moments grouped by day.
@@ -20,7 +20,8 @@ export class TimelineView extends ItemView {
 	private configOpen: boolean = false;
 	private pinned = false;
 	private pinnedBtn: HTMLButtonElement;
-	private scrollHandler: (() => void) | null = null;
+	private loadMoreObserver: IntersectionObserver | null = null;
+	private loadMoreSentinel: HTMLElement | null = null;
 	private filter: TimelineFilter = {
 		startDate: null,
 		endDate: null,
@@ -85,7 +86,7 @@ export class TimelineView extends ItemView {
 	}
 
 	onClose(): Promise<void> {
-		this.removeScrollListener();
+		this.destroyLoadMoreObserver();
 		this.destroyCardObserver();
 		this.contentCache.clear();
 		return Promise.resolve();
@@ -262,6 +263,7 @@ export class TimelineView extends ItemView {
 
 		// Tear down previous render state
 		this.destroyCardObserver();
+		this.destroyLoadMoreObserver();
 		this.timelineContentEl.empty();
 
 		// Reset pagination state
@@ -293,17 +295,17 @@ export class TimelineView extends ItemView {
 		// Set up lazy rendering observer
 		this.setupCardObserver();
 
+		// Set up the observer that auto-loads older months
+		this.setupLoadMoreObserver();
+
 		// Determine which month to start with
 		const startMonth = this.getStartMonth();
 
 		// Load initial month
 		this.loadMonth(startMonth);
 
-		// Add scroll listener for infinite loading
-		this.setupScrollListener();
-
-		// Add "load more" button as fallback
-		this.addLoadMoreButton();
+		// Add the sentinel that triggers loading older months when scrolled near
+		this.addLoadMoreSentinel();
 
 		done();
 	}
@@ -344,37 +346,28 @@ export class TimelineView extends ItemView {
 		return formatDate(new Date()).substring(0, 7);
 	}
 
-	private loadMonth(
-		month: string,
-		searchDepth: number = 0
-	): void {
+	private loadMonth(month: string): void {
 		if (this.loadedMonths.has(month)) {
 			return;
 		}
 
-		this.loadedMonths.add(month);
+		// Search backward (up to 12 months) for a month that has dates.
+		const result = findMonthWithDates(
+			month,
+			this.groupedByDate.keys(),
+			this.allImplicitByDate.keys()
+		);
 
-		// Track oldest loaded month
-		if (!this.oldestLoadedMonth || month < this.oldestLoadedMonth) {
-			this.oldestLoadedMonth = month;
-		}
-
-		// Get all dates for this month
-		const monthDates = getDatesForMonth(month, this.groupedByDate.keys(), this.allImplicitByDate.keys());
-
-		if (monthDates.length === 0) {
-			// No dates in this month, try older months (up to 12 months back on initial load)
-			if (searchDepth < 12) {
-				const prevMonth = getPreviousMonth(month);
-				this.loadMonth(prevMonth, searchDepth + 1);
+		// Mark every inspected month as loaded so empty months aren't re-scanned.
+		for (const visited of result.visitedMonths) {
+			this.loadedMonths.add(visited);
+			if (!this.oldestLoadedMonth || visited < this.oldestLoadedMonth) {
+				this.oldestLoadedMonth = visited;
 			}
-			return;
 		}
 
-		// Render days in this month (sorted newest first)
-		monthDates.sort((a, b) => b.localeCompare(a));
-
-		for (const date of monthDates) {
+		// Render the days of the month that contained dates (newest first).
+		for (const date of result.dates) {
 			const dayMoments = this.groupedByDate.get(date) || [];
 			const dayImplicit = this.allImplicitByDate.get(date) || [];
 
@@ -394,51 +387,44 @@ export class TimelineView extends ItemView {
 
 		// Check if there are any dates older than our oldest loaded month
 		const allDates = new Set([...this.groupedByDate.keys(), ...this.allImplicitByDate.keys(), ...this.activeFileMomentsByDate.keys()]);
-		const hasOlderDates = Array.from(allDates).some((date) => date < this.oldestLoadedMonth!);
+		const hasOlderDates = hasDatesBefore(allDates, this.oldestLoadedMonth);
 
 		if (!hasOlderDates) {
 			this.hasMoreMonths = false;
-			this.removeLoadMoreButton();
+			this.removeLoadMoreSentinel();
 			this.isLoadingMore = false;
 			return;
 		}
 
-		// Load the previous month (which may recursively load more if empty)
-		this.loadMonth(prevMonthStr, 0);
+		// Load the previous month (skips back over empty months to find dates)
+		this.loadMonth(prevMonthStr);
 
 		this.isLoadingMore = false;
 
-		// Update load more button visibility
-		this.updateLoadMoreButton();
+		// Keep the sentinel at the end so the observer can fire again if it
+		// is still visible (e.g. the loaded month was short).
+		this.repositionLoadMoreSentinel();
 	}
 
-	private setupScrollListener(): void {
-		this.removeScrollListener();
-
-		let rafPending = false;
-		this.scrollHandler = () => {
-			if (rafPending || this.isLoadingMore || !this.hasMoreMonths) {
-				return;
-			}
-			rafPending = true;
-			requestAnimationFrame(() => {
-				rafPending = false;
-				const { scrollTop, scrollHeight, clientHeight } = this.timelineContentEl;
-				const scrolledToBottom = scrollTop + clientHeight >= scrollHeight - 100;
-				if (scrolledToBottom) {
-					this.loadOlderMonth();
+	private setupLoadMoreObserver(): void {
+		this.loadMoreObserver = new IntersectionObserver(
+			(entries) => {
+				for (const entry of entries) {
+					if (entry.isIntersecting) {
+						this.loadOlderMonth();
+					}
 				}
-			});
-		};
-
-		this.timelineContentEl.addEventListener('scroll', this.scrollHandler, { passive: true });
+			},
+			{ root: this.timelineContentEl, rootMargin: '300px 0px' }
+		);
 	}
 
-	private removeScrollListener(): void {
-		if (this.scrollHandler) {
-			this.timelineContentEl?.removeEventListener('scroll', this.scrollHandler);
-			this.scrollHandler = null;
+	private destroyLoadMoreObserver(): void {
+		if (this.loadMoreObserver) {
+			this.loadMoreObserver.disconnect();
+			this.loadMoreObserver = null;
 		}
+		this.loadMoreSentinel = null;
 	}
 
 	private setupCardObserver(): void {
@@ -468,37 +454,31 @@ export class TimelineView extends ItemView {
 		this.pendingCardRenders.clear();
 	}
 
-	private addLoadMoreButton(): void {
-		const existingBtn = this.timelineContentEl.querySelector('.moments-load-more');
-		if (existingBtn) {
-			existingBtn.remove();
-		}
+	private addLoadMoreSentinel(): void {
+		this.removeLoadMoreSentinel();
 
 		if (!this.hasMoreMonths) {
 			return;
 		}
 
-		const loadMoreBtn = this.timelineContentEl.createEl('button', {
-			cls: 'moments-load-more',
-			text: 'Load more...',
+		this.loadMoreSentinel = this.timelineContentEl.createEl('div', {
+			cls: 'moments-load-sentinel',
 		});
-
-		loadMoreBtn.addEventListener('click', () => {
-			this.loadOlderMonth();
-		});
+		this.loadMoreObserver?.observe(this.loadMoreSentinel);
 	}
 
-	private updateLoadMoreButton(): void {
-		const btn = this.timelineContentEl.querySelector('.moments-load-more');
-		if (btn && !this.hasMoreMonths) {
-			btn.remove();
+	/** Move the sentinel back to the end after older months are appended. */
+	private repositionLoadMoreSentinel(): void {
+		if (this.loadMoreSentinel && this.hasMoreMonths) {
+			this.timelineContentEl.appendChild(this.loadMoreSentinel);
 		}
 	}
 
-	private removeLoadMoreButton(): void {
-		const btn = this.timelineContentEl.querySelector('.moments-load-more');
-		if (btn) {
-			btn.remove();
+	private removeLoadMoreSentinel(): void {
+		if (this.loadMoreSentinel) {
+			this.loadMoreObserver?.unobserve(this.loadMoreSentinel);
+			this.loadMoreSentinel.remove();
+			this.loadMoreSentinel = null;
 		}
 	}
 

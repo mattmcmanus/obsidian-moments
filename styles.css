@@ -148,6 +148,10 @@
 	font-weight: 600;
 	font-size: 14px;
 	color: var(--text-normal);
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .moments-card-title p {
@@ -219,11 +223,9 @@
 	text-decoration: underline;
 }
 
-/* Load More Button */
-.moments-load-more {
-	display: block;
-	width: 100%;
-	margin-top: 16px;
+/* Load More Sentinel — observed to auto-load older months */
+.moments-load-sentinel {
+	height: 1px;
 }
 
 /* Empty State */

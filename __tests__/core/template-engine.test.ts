@@ -2,6 +2,7 @@ import {
 	renderTemplate,
 	buildHeadingString,
 	buildFilename,
+	evaluateCoreTemplate,
 	type TemplateVariables,
 } from '../../src/core/template-engine';
 
@@ -149,5 +150,48 @@ describe('buildFilename', () => {
 		const vars: TemplateVariables = { date: '2026-02-04', title: null };
 		const result = buildFilename(vars);
 		expect(result).toBe('2026-02-04.md');
+	});
+});
+
+describe('evaluateCoreTemplate', () => {
+	const now = new Date('2026-02-04T14:30:00');
+	const opts = {
+		title: 'My Note',
+		dateFormat: 'YYYY-MM-DD',
+		timeFormat: 'HH:mm',
+		now,
+	};
+
+	it('replaces {{title}} with the note title', () => {
+		expect(evaluateCoreTemplate('# {{title}}', opts)).toBe('# My Note');
+	});
+
+	it('replaces {{date}} using the default date format', () => {
+		expect(evaluateCoreTemplate('{{date}}', opts)).toBe('2026-02-04');
+	});
+
+	it('replaces {{time}} using the default time format', () => {
+		expect(evaluateCoreTemplate('{{time}}', opts)).toBe('14:30');
+	});
+
+	it('replaces {{date:FORMAT}} with the inline format', () => {
+		expect(evaluateCoreTemplate('{{date:YYYY}}', opts)).toBe('2026');
+	});
+
+	it('replaces {{time:FORMAT}} with the inline format', () => {
+		expect(evaluateCoreTemplate('{{time:HH}}', opts)).toBe('14');
+	});
+
+	it('replaces multiple placeholders in one template', () => {
+		const result = evaluateCoreTemplate('{{title}} — {{date}} {{time}}', opts);
+		expect(result).toBe('My Note — 2026-02-04 14:30');
+	});
+
+	it('leaves unknown placeholders untouched', () => {
+		expect(evaluateCoreTemplate('{{foo}}', opts)).toBe('{{foo}}');
+	});
+
+	it('repeats the same placeholder', () => {
+		expect(evaluateCoreTemplate('{{title}} {{title}}', opts)).toBe('My Note My Note');
 	});
 });

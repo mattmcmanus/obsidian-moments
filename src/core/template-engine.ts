@@ -1,3 +1,5 @@
+import { moment } from 'obsidian';
+
 /**
  * Variables available for template substitution
  */
@@ -48,6 +50,40 @@ export function renderTemplate(
 		}
 		return value;
 	});
+}
+
+/**
+ * Evaluate the placeholders supported by Obsidian's core Templates plugin:
+ * `{{title}}`, `{{date}}`, `{{time}}`, and the formatted variants
+ * `{{date:FORMAT}}` and `{{time:FORMAT}}`.
+ *
+ * Used when applying a template without Templater available, so core-style
+ * placeholders are resolved rather than inserted verbatim.
+ *
+ * @param template - Raw template content
+ * @param options - Title, default date/time formats, and optional fixed time
+ * @returns Content with core placeholders replaced
+ */
+export function evaluateCoreTemplate(
+	template: string,
+	options: {
+		title: string;
+		dateFormat: string;
+		timeFormat: string;
+		now?: Date;
+	}
+): string {
+	const now = moment(options.now ?? new Date());
+	return template.replace(
+		/\{\{(title|date|time)(?::([^}]*))?\}\}/g,
+		(_match, name: string, format: string | undefined) => {
+			if (name === 'title') {
+				return options.title;
+			}
+			const defaultFormat = name === 'date' ? options.dateFormat : options.timeFormat;
+			return now.format(format?.trim() || defaultFormat);
+		}
+	);
 }
 
 /**
