@@ -1,7 +1,7 @@
 {
 	"id": "moments",
 	"name": "Moments",
-	"version": "0.3.1",
+	"version": "0.4.0",
 	"minAppVersion": "1.11.0",
 	"description": "Unify date-based note-taking with inline moments, standalone dated notes, and a chronological timeline view.",
 	"author": "mattmcmanus",
