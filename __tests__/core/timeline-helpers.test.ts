@@ -4,6 +4,8 @@ import {
 	groupMomentsByDate,
 	formatImplicitSummary,
 	formatActiveFileIndicator,
+	findMonthWithDates,
+	hasDatesBefore,
 } from '../../src/core/timeline-helpers';
 import type { Moment } from '../../src/types';
 
@@ -149,5 +151,69 @@ describe('formatActiveFileIndicator', () => {
 	it('formats plural moment count', () => {
 		expect(formatActiveFileIndicator(3, 'Project Alpha'))
 			.toBe('3 moments in Project Alpha');
+	});
+});
+
+describe('findMonthWithDates', () => {
+	it('finds dates in the start month', () => {
+		const result = findMonthWithDates('2026-05', ['2026-05-04', '2026-05-20'], []);
+		expect(result.monthWithDates).toBe('2026-05');
+		expect(result.dates).toEqual(['2026-05-20', '2026-05-04']);
+		expect(result.visitedMonths).toEqual(['2026-05']);
+	});
+
+	it('sorts the returned dates newest-first', () => {
+		const result = findMonthWithDates('2026-05', ['2026-05-04', '2026-05-28', '2026-05-15'], []);
+		expect(result.dates).toEqual(['2026-05-28', '2026-05-15', '2026-05-04']);
+	});
+
+	it('walks backward past empty months until it finds dates', () => {
+		const result = findMonthWithDates('2026-05', ['2026-03-10'], []);
+		expect(result.monthWithDates).toBe('2026-03');
+		expect(result.dates).toEqual(['2026-03-10']);
+		expect(result.visitedMonths).toEqual(['2026-05', '2026-04', '2026-03']);
+	});
+
+	it('combines explicit and implicit dates', () => {
+		const result = findMonthWithDates('2026-05', ['2026-05-04'], ['2026-05-09']);
+		expect(result.dates).toEqual(['2026-05-09', '2026-05-04']);
+	});
+
+	it('crosses the year boundary when walking backward', () => {
+		const result = findMonthWithDates('2026-01', ['2025-12-31'], []);
+		expect(result.monthWithDates).toBe('2025-12');
+		expect(result.visitedMonths).toEqual(['2026-01', '2025-12']);
+	});
+
+	it('returns no month when nothing is found within maxDepth', () => {
+		const result = findMonthWithDates('2026-05', ['2020-01-01'], []);
+		expect(result.monthWithDates).toBeNull();
+		expect(result.dates).toEqual([]);
+		// start month plus 12 previous months are all inspected
+		expect(result.visitedMonths).toHaveLength(13);
+	});
+
+	it('respects a custom maxDepth', () => {
+		const result = findMonthWithDates('2026-05', ['2026-01-01'], [], 2);
+		expect(result.monthWithDates).toBeNull();
+		expect(result.visitedMonths).toEqual(['2026-05', '2026-04', '2026-03']);
+	});
+});
+
+describe('hasDatesBefore', () => {
+	it('returns true when a date precedes the month', () => {
+		expect(hasDatesBefore(['2026-04-30', '2026-06-01'], '2026-05')).toBe(true);
+	});
+
+	it('returns false when all dates are in or after the month', () => {
+		expect(hasDatesBefore(['2026-05-01', '2026-07-15'], '2026-05')).toBe(false);
+	});
+
+	it('treats a date within the same month as not before it', () => {
+		expect(hasDatesBefore(['2026-05-15'], '2026-05')).toBe(false);
+	});
+
+	it('returns false for an empty date set', () => {
+		expect(hasDatesBefore([], '2026-05')).toBe(false);
 	});
 });

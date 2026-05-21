@@ -31,6 +31,71 @@ export function getDatesForMonth(
 }
 
 /**
+ * Result of searching backward for a month containing dates.
+ */
+export interface MonthSearchResult {
+	/** Every month inspected during the search (start month first, oldest last). */
+	visitedMonths: string[];
+	/** The first month, searching backward, that contains dates — or null. */
+	monthWithDates: string | null;
+	/** Dates in `monthWithDates`, sorted newest-first. Empty when none found. */
+	dates: string[];
+}
+
+/**
+ * Search backward from `startMonth` for the first month containing dates.
+ *
+ * Inspects the start month and up to `maxDepth` previous months. Every month
+ * inspected is returned in `visitedMonths` so the caller can mark them all as
+ * loaded, avoiding repeat scans of empty months.
+ *
+ * @param startMonth - Month to start from (YYYY-MM)
+ * @param explicitDates - Dates of explicit moments (YYYY-MM-DD)
+ * @param implicitDates - Dates of implicit moments (YYYY-MM-DD)
+ * @param maxDepth - How many previous months to inspect beyond the start month
+ */
+export function findMonthWithDates(
+	startMonth: string,
+	explicitDates: Iterable<string>,
+	implicitDates: Iterable<string>,
+	maxDepth: number = 12
+): MonthSearchResult {
+	const explicit = new Set(explicitDates);
+	const implicit = new Set(implicitDates);
+	const visitedMonths: string[] = [];
+	let month = startMonth;
+
+	for (let depth = 0; depth <= maxDepth; depth++) {
+		visitedMonths.push(month);
+		const dates = getDatesForMonth(month, explicit, implicit);
+		if (dates.length > 0) {
+			dates.sort((a, b) => b.localeCompare(a));
+			return { visitedMonths, monthWithDates: month, dates };
+		}
+		month = getPreviousMonth(month);
+	}
+
+	return { visitedMonths, monthWithDates: null, dates: [] };
+}
+
+/**
+ * Whether any date falls strictly before the given month.
+ *
+ * Date strings are YYYY-MM-DD and the month is YYYY-MM; lexical comparison
+ * against the shorter month prefix correctly treats every day of an earlier
+ * month as "before" and every day of the same month as not before.
+ *
+ * @param allDates - Date strings to check (YYYY-MM-DD)
+ * @param month - Month boundary (YYYY-MM)
+ */
+export function hasDatesBefore(allDates: Iterable<string>, month: string): boolean {
+	for (const date of allDates) {
+		if (date < month) return true;
+	}
+	return false;
+}
+
+/**
  * Group moments by their date, sorted newest first within each day.
  */
 export function groupMomentsByDate(moments: Moment[]): Map<string, Moment[]> {
