@@ -29,6 +29,14 @@ describe('detectPeriodicNoteType', () => {
 			});
 		});
 
+		it('detects daily note with two-digit year format', () => {
+			const result = detectPeriodicNoteType('26.05.20.md', '', 'YY.MM.DD');
+			expect(result).toEqual({
+				type: 'daily',
+				date: '2026-05-20',
+			});
+		});
+
 		it('returns null for non-daily note', () => {
 			const result = detectPeriodicNoteType('random-note.md', 'daily/', 'YYYY-MM-DD');
 			expect(result).toBeNull();
@@ -40,7 +48,7 @@ describe('detectPeriodicNoteType', () => {
 			const result = detectPeriodicNoteType(
 				'2026-W06.md',
 				'weekly/',
-				'YYYY-[W]ww'
+				'YYYY-MM-DD'
 			);
 			expect(result).toEqual({
 				type: 'weekly',
@@ -52,7 +60,7 @@ describe('detectPeriodicNoteType', () => {
 			const result = detectPeriodicNoteType(
 				'weekly/2026-W06.md',
 				'weekly/',
-				'YYYY-[W]ww'
+				'YYYY-MM-DD'
 			);
 			expect(result).toEqual({
 				type: 'weekly',
@@ -63,7 +71,7 @@ describe('detectPeriodicNoteType', () => {
 
 	describe('monthly notes', () => {
 		it('detects monthly note from filename', () => {
-			const result = detectPeriodicNoteType('2026-02.md', 'monthly/', 'YYYY-MM');
+			const result = detectPeriodicNoteType('2026-02.md', 'monthly/', 'YYYY-MM-DD');
 			expect(result).toEqual({
 				type: 'monthly',
 				date: '2026-02',
@@ -73,7 +81,7 @@ describe('detectPeriodicNoteType', () => {
 
 	describe('yearly notes', () => {
 		it('detects yearly note from filename', () => {
-			const result = detectPeriodicNoteType('2026.md', 'yearly/', 'YYYY');
+			const result = detectPeriodicNoteType('2026.md', 'yearly/', 'YYYY-MM-DD');
 			expect(result).toEqual({
 				type: 'yearly',
 				date: '2026',

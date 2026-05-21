@@ -1,3 +1,4 @@
+import { moment } from 'obsidian';
 import { formatDate } from './date-parser';
 
 /**
@@ -48,17 +49,11 @@ export function detectPeriodicNoteType(
 	// Get just the filename without extension
 	const filename = filePath.split('/').pop()?.replace(/\.md$/, '') || '';
 
-	// Build pattern from daily format
-	const dailyPattern = buildDatePatternForDetection(dailyFormat);
-
-	// Check if matches daily format
-	const matchesDaily = dailyPattern.test(filename);
-
-	if (matchesDaily) {
-		const date = parseDateFromFormat(filename, dailyFormat);
-		if (date) {
-			return { type: 'daily', date };
-		}
+	// Check if the filename matches the configured daily-note format.
+	// Strict parsing requires an exact match and a real calendar date.
+	const dailyMoment = moment(filename, dailyFormat, true);
+	if (dailyMoment.isValid()) {
+		return { type: 'daily', date: dailyMoment.format('YYYY-MM-DD') };
 	}
 
 	// Check weekly pattern (YYYY-Www)
@@ -86,71 +81,6 @@ export function detectPeriodicNoteType(
 	const yearlyMatch = filename.match(PERIODIC_PATTERNS.yearly);
 	if (yearlyMatch && yearlyMatch[1] && filename.length === 4) {
 		return { type: 'yearly', date: yearlyMatch[1] };
-	}
-
-	return null;
-}
-
-/**
- * Build a regex pattern for detecting dates in a specific format.
- */
-function buildDatePatternForDetection(format: string): RegExp {
-	const escaped = format
-		.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-		.replace('YYYY', '(\\d{4})')
-		.replace('MM', '(\\d{2})')
-		.replace('DD', '(\\d{2})')
-		.replace('M', '(\\d{1,2})')
-		.replace('D', '(\\d{1,2})');
-
-	return new RegExp(`^${escaped}$`);
-}
-
-/**
- * Parse a date string from a specific format to ISO format.
- */
-function parseDateFromFormat(dateStr: string, format: string): string | null {
-	const pattern = buildDatePatternForDetection(format);
-	const match = dateStr.match(pattern);
-	if (!match) return null;
-
-	// Find positions of YYYY, MM, DD in format
-	const yearIdx = format.indexOf('YYYY');
-	const monthIdx = format.indexOf('MM') !== -1 ? format.indexOf('MM') : format.indexOf('M');
-	const dayIdx = format.indexOf('DD') !== -1 ? format.indexOf('DD') : format.indexOf('D');
-
-	// Order the components
-	const components: Array<{ idx: number; type: 'year' | 'month' | 'day' }> = [];
-	if (yearIdx !== -1) components.push({ idx: yearIdx, type: 'year' });
-	if (monthIdx !== -1) components.push({ idx: monthIdx, type: 'month' });
-	if (dayIdx !== -1) components.push({ idx: dayIdx, type: 'day' });
-	components.sort((a, b) => a.idx - b.idx);
-
-	let year = '';
-	let month = '';
-	let day = '';
-
-	// Extract values (match[0] is the full match, match[1]+ are the groups)
-	for (let i = 0; i < components.length; i++) {
-		const component = components[i];
-		const value = match[i + 1];
-		if (!component || !value) continue;
-
-		switch (component.type) {
-			case 'year':
-				year = value;
-				break;
-			case 'month':
-				month = value.padStart(2, '0');
-				break;
-			case 'day':
-				day = value.padStart(2, '0');
-				break;
-		}
-	}
-
-	if (year && month && day) {
-		return `${year}-${month}-${day}`;
 	}
 
 	return null;
