@@ -74,8 +74,13 @@ export class MomentModal extends Modal {
 				});
 			});
 
-		// Buttons
+		// Buttons — Cancel on the left, primary Create action on the right
 		new Setting(contentEl)
+			.addButton((btn) =>
+				btn.setButtonText('Cancel').onClick(() => {
+					this.close();
+				})
+			)
 			.addButton((btn) =>
 				btn
 					.setButtonText('Create')
@@ -83,11 +88,6 @@ export class MomentModal extends Modal {
 					.onClick(() => {
 						this.submit();
 					})
-			)
-			.addButton((btn) =>
-				btn.setButtonText('Cancel').onClick(() => {
-					this.close();
-				})
 			);
 
 		// Handle Enter key — Modal.scope is auto-managed (pushed on open, popped on close)
