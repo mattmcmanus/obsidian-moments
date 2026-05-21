@@ -1,5 +1,6 @@
-import { App, PluginSettingTab, SettingGroup } from 'obsidian';
+import { App, PluginSettingTab, SettingGroup, normalizePath } from 'obsidian';
 import type MomentsPlugin from '../main';
+import { FolderSuggest } from '../ui/folder-suggest';
 
 /**
  * Settings tab for the Moments plugin
@@ -136,6 +137,26 @@ export class MomentsSettingTab extends PluginSettingTab {
 		// Standalone moment settings section
 		new SettingGroup(containerEl)
 			.setHeading('Standalone notes')
+			.addSetting((setting) => {
+				setting
+					.setName('Default folder')
+					.setDesc(
+						"Folder for new standalone moment notes. Leave blank to use Obsidian's new-note location."
+					)
+					.addText((text) => {
+						text
+							.setPlaceholder('Journal')
+							.setValue(this.plugin.settings.standaloneFolder)
+							.onChange(async (value) => {
+								const trimmed = value.trim();
+								this.plugin.settings.standaloneFolder = trimmed
+									? normalizePath(trimmed)
+									: '';
+								await this.plugin.saveSettings();
+							});
+						new FolderSuggest(this.app, text.inputEl);
+					});
+			})
 			.addSetting((setting) => {
 				setting
 					.setName('Filename template')

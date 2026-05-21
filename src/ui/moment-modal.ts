@@ -1,6 +1,7 @@
 import { App, Modal, Setting, Notice } from 'obsidian';
 import { formatDate, parseDate, DEFAULT_DATE_FORMAT } from '../core/date-parser';
 import { NoteLinkSuggest } from './note-link-suggest';
+import { FolderSuggest } from './folder-suggest';
 import { MODAL_FOCUS_DELAY_MS } from '../constants';
 
 /**
@@ -9,6 +10,8 @@ import { MODAL_FOCUS_DELAY_MS } from '../constants';
 export interface MomentModalResult {
 	title: string;
 	date: string;
+	/** Target folder — only present when the modal showed a folder field. */
+	folder?: string;
 }
 
 /**
@@ -21,12 +24,15 @@ export class MomentModal extends Modal {
 	private titleText: string = '';
 	private dateText: string;
 	private modalTitle: string;
+	private folderField: { defaultValue: string } | null = null;
+	private folderText: string = '';
 
 	constructor(
 		app: App,
 		options: {
 			title: string;
 			dateFormat: string;
+			folderField?: { defaultValue: string };
 			onSubmit: (result: MomentModalResult) => void | Promise<void>;
 		}
 	) {
@@ -35,6 +41,8 @@ export class MomentModal extends Modal {
 		this.dateFormat = options.dateFormat;
 		this.onSubmit = options.onSubmit;
 		this.dateText = formatDate(new Date(), this.dateFormat);
+		this.folderField = options.folderField ?? null;
+		this.folderText = options.folderField?.defaultValue ?? '';
 	}
 
 	onOpen() {
@@ -74,6 +82,22 @@ export class MomentModal extends Modal {
 				});
 			});
 
+		// Folder input — only when the caller requested it (standalone notes)
+		if (this.folderField) {
+			new Setting(contentEl)
+				.setName('Folder')
+				.setDesc('Where to create the note')
+				.addText((text) => {
+					text
+						.setPlaceholder('Journal')
+						.setValue(this.folderText)
+						.onChange((value) => {
+							this.folderText = value;
+						});
+					new FolderSuggest(this.app, text.inputEl);
+				});
+		}
+
 		// Buttons — Cancel on the left, primary Create action on the right
 		new Setting(contentEl)
 			.addButton((btn) =>
@@ -107,6 +131,7 @@ export class MomentModal extends Modal {
 		this.result = {
 			title: this.titleText.trim(),
 			date: this.dateText,
+			folder: this.folderField ? this.folderText.trim() : undefined,
 		};
 
 		this.close();
