@@ -1,44 +1,31 @@
-import { format as fnsFormat, parse as fnsParse, isValid } from 'date-fns';
+import { moment } from 'obsidian';
 
 /**
  * Default date format (ISO 8601).
- * Uses moment-style tokens (YYYY, MM, DD) for user-facing consistency.
+ *
+ * Formats use Moment.js tokens — the same token language Obsidian and the
+ * core Daily Notes plugin use (YYYY, YY, MM, DD, ...).
  */
 export const DEFAULT_DATE_FORMAT = 'YYYY-MM-DD';
 
 /**
- * Convert moment-style format tokens to date-fns tokens.
- * YYYY → yyyy, DD → dd (MM is the same in both).
- */
-function toFnsFormat(format: string): string {
-	return format.replace('YYYY', 'yyyy').replace('DD', 'dd');
-}
-
-/**
- * Format a Date object as a string using the given format.
- *
- * Supported tokens: YYYY (year), MM (month), DD (day)
+ * Format a Date object as a string using the given Moment.js format.
  */
 export function formatDate(date: Date, format: string = DEFAULT_DATE_FORMAT): string {
-	return fnsFormat(date, toFnsFormat(format));
+	return moment(date).format(format);
 }
 
 /**
- * Parse a date string using the given format.
+ * Parse a date string using the given Moment.js format.
  *
- * @returns A Date object, or null if parsing fails or date is invalid
+ * Parsing is strict: the string must match the format exactly and represent
+ * a real calendar date (e.g. Feb 30 and month 13 are rejected).
+ *
+ * @returns A Date object, or null if parsing fails or the date is invalid
  */
 export function parseDate(dateString: string, format: string = DEFAULT_DATE_FORMAT): Date | null {
 	if (!dateString) return null;
 
-	const fmtStr = toFnsFormat(format);
-	const date = fnsParse(dateString, fmtStr, new Date(0));
-
-	if (!isValid(date)) return null;
-
-	// Verify round-trip to catch things like month 13 or Feb 30
-	// that date-fns silently rolls over
-	if (fnsFormat(date, fmtStr) !== dateString) return null;
-
-	return date;
+	const parsed = moment(dateString, format, true);
+	return parsed.isValid() ? parsed.toDate() : null;
 }

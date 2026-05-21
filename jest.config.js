@@ -6,6 +6,7 @@ export default {
 	testMatch: ['**/*.test.ts'],
 	moduleNameMapper: {
 		'^(\\.{1,2}/.*)\\.js$': '$1',
+		'^obsidian$': '<rootDir>/__tests__/__mocks__/obsidian.ts',
 	},
 	transform: {
 		'^.+\\.tsx?$': [

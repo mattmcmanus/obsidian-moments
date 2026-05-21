@@ -22,7 +22,7 @@ export class MomentsSettingTab extends PluginSettingTab {
 			.addSetting((setting) => {
 				setting
 					.setName('Date format')
-					.setDesc('Format for dates in headings and filenames. Auto-detected from daily notes if installed.')
+					.setDesc('Moment.js format for dates in headings and filenames. Auto-detected from daily notes if installed.')
 					.addText((text) =>
 						text
 							.setValue(this.plugin.settings.dateFormat)
