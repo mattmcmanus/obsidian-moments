@@ -6,6 +6,7 @@ import { formatDate } from '../core/date-parser';
 import { extractContentUnderHeading } from '../core/content-extractor';
 import { debug, debugTimed } from '../utils/debug';
 import { getPreviousMonth, groupMomentsByDate, formatActiveFileIndicator, findMonthWithDates, hasDatesBefore } from '../core/timeline-helpers';
+import { timelineRenderDecision } from '../core/timeline-fingerprint';
 
 /**
  * Timeline view displaying moments grouped by day.
@@ -256,14 +257,27 @@ export class TimelineView extends ItemView {
 			}
 		}
 
-		// Build a fingerprint from moment data to detect changes
-		const fingerprint = this.computeFingerprint(moments, implicitByDate);
-		if (!force && fingerprint === this.lastRenderFingerprint) {
+		// Skip the rebuild when nothing that affects the output changed.
+		const decision = timelineRenderDecision(
+			this.lastRenderFingerprint,
+			{
+				moments,
+				implicitByDate,
+				activeFileMomentsByDate: this.activeFileMomentsByDate,
+				filter: this.filter,
+				settings: {
+					showImplicitMoments: this.plugin.settings.showImplicitMoments,
+					implicitMomentsStyle: this.plugin.settings.implicitMomentsStyle,
+				},
+			},
+			force
+		);
+		if (!decision.shouldRender) {
 			debug('Timeline render skipped - data unchanged');
 			done();
 			return;
 		}
-		this.lastRenderFingerprint = fingerprint;
+		this.lastRenderFingerprint = decision.fingerprint;
 
 		// Tear down previous render state
 		this.destroyCardObserver();
@@ -312,33 +326,6 @@ export class TimelineView extends ItemView {
 		this.addLoadMoreSentinel();
 
 		done();
-	}
-
-	private computeFingerprint(
-		moments: Moment[],
-		implicitByDate: Map<string, ImplicitMoment[]>
-	): string {
-		// Moments fingerprint: count + key fields of each moment
-		const parts: string[] = [
-			String(moments.length),
-			this.plugin.settings.showImplicitMoments ? '1' : '0',
-			this.plugin.settings.implicitMomentsStyle,
-			this.filter.startDate ?? '',
-			this.filter.endDate ?? '',
-			this.filter.relatedToFile ?? '',
-		];
-		for (const m of moments) {
-			parts.push(`${m.filePath}:${m.date}:${m.headingLine ?? 's'}`);
-		}
-		// Implicit fingerprint: count per date
-		for (const [date, items] of implicitByDate) {
-			parts.push(`i:${date}:${items.length}`);
-		}
-		// Active file indicator fingerprint
-		for (const [date, moments] of this.activeFileMomentsByDate) {
-			parts.push(`a:${date}:${moments.length}`);
-		}
-		return parts.join('|');
 	}
 
 	private getStartMonth(): string {
