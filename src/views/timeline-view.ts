@@ -7,6 +7,7 @@ import { extractContentUnderHeading } from '../core/content-extractor';
 import { debug, debugTimed } from '../utils/debug';
 import { getPreviousMonth, groupMomentsByDate, formatActiveFileIndicator, findMonthWithDates, hasDatesBefore } from '../core/timeline-helpers';
 import { timelineRenderDecision } from '../core/timeline-fingerprint';
+import { GoToDateModal } from '../ui/go-to-date-modal';
 
 /**
  * Timeline view displaying moments grouped by day.
@@ -119,6 +120,14 @@ export class TimelineView extends ItemView {
 		setIcon(this.pinnedBtn, 'pin');
 		this.pinnedBtn.addClass('moments-hidden');
 		this.pinnedBtn.addEventListener('click', () => this.clearFilter());
+
+		// Go to date button
+		const goToDateBtn = controls.createEl('button', {
+			cls: 'clickable-icon',
+			attr: { 'aria-label': 'Go to date' },
+		});
+		setIcon(goToDateBtn, 'calendar-search');
+		goToDateBtn.addEventListener('click', () => this.openGoToDate());
 
 		// Config toggle button
 		const configBtn = controls.createEl('button', {
@@ -830,6 +839,26 @@ export class TimelineView extends ItemView {
 		Object.assign(this.filter, updates);
 		this.updateHeader();
 		void this.renderTimeline();
+	}
+
+	/**
+	 * Open the "Go to date" picker. Defaults to the current date filter (if any)
+	 * so reopening the modal starts where the timeline currently sits.
+	 */
+	openGoToDate(): void {
+		new GoToDateModal(this.app, {
+			initialDate: this.filter.startDate ?? undefined,
+			onSubmit: (isoDate) => this.goToDate(isoDate),
+		}).open();
+	}
+
+	/**
+	 * Jump the timeline to a specific day and pin the filter so it sticks
+	 * (auto-follow won't override an explicit navigation).
+	 */
+	goToDate(isoDate: string): void {
+		debug('Go to date', { isoDate });
+		this.applyFilter({ startDate: isoDate, endDate: isoDate, relatedToFile: null }, true);
 	}
 
 	setDateFilter(startDate: string | null, endDate: string | null): void {

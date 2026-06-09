@@ -3,6 +3,7 @@ import { MomentsSettings, DEFAULT_SETTINGS } from './settings/settings';
 import { MomentsSettingTab } from './settings/settings-tab';
 import { registerCommands } from './commands/index';
 import { TimelineView } from './views/timeline-view';
+import { GoToDateModal } from './ui/go-to-date-modal';
 import { RIBBON_ICON, TIMELINE_VIEW_TYPE, COMMANDS } from './constants';
 import type { Moment, MomentCache, ImplicitMoment, TimelineFilter } from './types';
 import {
@@ -98,6 +99,15 @@ export default class MomentsPlugin extends Plugin {
 			icon: RIBBON_ICON,
 			callback: () => {
 				void this.openTimeline('tab');
+			},
+		});
+
+		this.addCommand({
+			id: COMMANDS.GO_TO_DATE,
+			name: 'Go to date',
+			icon: 'calendar-search',
+			callback: () => {
+				void this.openGoToDate();
 			},
 		});
 
@@ -582,6 +592,24 @@ export default class MomentsPlugin extends Plugin {
 		});
 
 		void workspace.revealLeaf(leaf);
+	}
+
+	/**
+	 * Open the timeline (if needed) and prompt for a date to jump to.
+	 */
+	async openGoToDate(): Promise<void> {
+		await this.openTimeline(this.settings.defaultViewMode);
+
+		const view = this.app.workspace
+			.getLeavesOfType(TIMELINE_VIEW_TYPE)
+			.map((leaf) => leaf.view)
+			.find((v): v is TimelineView => v instanceof TimelineView);
+
+		if (!view) return;
+
+		new GoToDateModal(this.app, {
+			onSubmit: (isoDate) => view.goToDate(isoDate),
+		}).open();
 	}
 
 	/**
