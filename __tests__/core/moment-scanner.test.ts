@@ -17,12 +17,20 @@ describe('isStandaloneMoment', () => {
 		expect(isStandaloneMoment('2026-02-04.md')).toBe(true);
 	});
 
+	it('returns true for space-separated title without a dash', () => {
+		expect(isStandaloneMoment('2026-04-09 Title Here.md')).toBe(true);
+	});
+
 	it('returns false for regular filename', () => {
 		expect(isStandaloneMoment('Meeting notes.md')).toBe(false);
 	});
 
 	it('returns false for filename with date in middle', () => {
 		expect(isStandaloneMoment('Notes from 2026-02-04.md')).toBe(false);
+	});
+
+	it('returns false when text abuts the date with no separator', () => {
+		expect(isStandaloneMoment('2026-02-04abc.md')).toBe(false);
 	});
 
 	it('returns false for non-md files', () => {
@@ -58,6 +66,14 @@ describe('parseStandaloneFilename', () => {
 		expect(result).toEqual({
 			date: '2026-02-04',
 			title: null,
+		});
+	});
+
+	it('parses a space-separated title without a dash', () => {
+		const result = parseStandaloneFilename('2026-04-09 Title Here.md');
+		expect(result).toEqual({
+			date: '2026-04-09',
+			title: 'Title Here',
 		});
 	});
 
