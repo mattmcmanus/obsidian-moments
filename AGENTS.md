@@ -125,6 +125,7 @@ Follow Obsidian's **Developer Policies** and **Plugin Guidelines**. In particula
 - Bundle everything into `main.js` (no unbundled runtime deps).
 - Avoid Node/Electron APIs if you want mobile compatibility; set `isDesktopOnly` accordingly.
 - Keep startup light. Defer heavy work until needed; use lazy initialization.
+- Write **evergreen** comments and PR/issue prose: describe what the code does now as timeless fact, not the journey to it. Cut temporal language ("previously", "no longer", "now we") and transient PR/sibling-change references; name the mechanism instead. A linked public GitHub issue (`#15`) is fine. Commit messages and `git log` are where chronology belongs. See `.claude/skills/evergreen-comments/SKILL.md`.
 
 ## Mobile
 
