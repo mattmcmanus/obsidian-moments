@@ -114,19 +114,6 @@ export class TimelineView extends ItemView {
 		this.clearFilterBtn.addClass('moments-hidden');
 		this.clearFilterBtn.addEventListener('click', () => this.clearFilter());
 
-		// Hidden native date input, opened directly by the button below so
-		// picking a date is a single interaction (no intermediate modal).
-		// Kept rendered (not display:none) so showPicker() is permitted.
-		this.goToDateInput = controls.createEl('input', {
-			cls: 'moments-date-input',
-			attr: { type: 'date', 'aria-hidden': 'true', tabindex: '-1' },
-		});
-		this.goToDateInput.addEventListener('change', () => {
-			if (this.goToDateInput.value) {
-				this.goToDate(this.goToDateInput.value);
-			}
-		});
-
 		// Go to date button (only shown when no filter is active)
 		this.goToDateBtn = controls.createEl('button', {
 			cls: 'clickable-icon',
@@ -142,6 +129,20 @@ export class TimelineView extends ItemView {
 		});
 		setIcon(configBtn, 'settings');
 		configBtn.addEventListener('click', () => this.toggleConfigPanel());
+
+		// Hidden native date input backing the "Go to date" button. Deliberately
+		// a child of the header root (not the controls row) so it can never add
+		// width between the buttons. Kept rendered (not display:none) so
+		// HTMLInputElement.showPicker() is permitted.
+		this.goToDateInput = header.createEl('input', {
+			cls: 'moments-date-input',
+			attr: { type: 'date', 'aria-hidden': 'true', tabindex: '-1' },
+		});
+		this.goToDateInput.addEventListener('change', () => {
+			if (this.goToDateInput.value) {
+				this.goToDate(this.goToDateInput.value);
+			}
+		});
 
 		// Config panel (hidden by default)
 		this.configPanelEl = header.createEl('div', { cls: 'moments-config-panel' });
