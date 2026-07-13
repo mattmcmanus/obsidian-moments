@@ -18,6 +18,8 @@ export class TimelineView extends ItemView {
 	private headerTitleEl: HTMLElement;
 	private headerSubtitleEl: HTMLElement;
 	private clearFilterBtn: HTMLButtonElement;
+	private goToDateBtn: HTMLButtonElement;
+	private goToDateInput: HTMLInputElement;
 	private configPanelEl: HTMLElement;
 	private configOpen: boolean = false;
 	private pinned = false;
@@ -121,13 +123,26 @@ export class TimelineView extends ItemView {
 		this.pinnedBtn.addClass('moments-hidden');
 		this.pinnedBtn.addEventListener('click', () => this.clearFilter());
 
-		// Go to date button
-		const goToDateBtn = controls.createEl('button', {
+		// Hidden native date input, opened directly by the button below so
+		// picking a date is a single interaction (no intermediate modal).
+		// Kept rendered (not display:none) so showPicker() is permitted.
+		this.goToDateInput = controls.createEl('input', {
+			cls: 'moments-date-input',
+			attr: { type: 'date', 'aria-hidden': 'true', tabindex: '-1' },
+		});
+		this.goToDateInput.addEventListener('change', () => {
+			if (this.goToDateInput.value) {
+				this.goToDate(this.goToDateInput.value);
+			}
+		});
+
+		// Go to date button (only shown when no filter is active)
+		this.goToDateBtn = controls.createEl('button', {
 			cls: 'clickable-icon',
 			attr: { 'aria-label': 'Go to date' },
 		});
-		setIcon(goToDateBtn, 'calendar-search');
-		goToDateBtn.addEventListener('click', () => this.openGoToDate());
+		setIcon(this.goToDateBtn, 'calendar-search');
+		this.goToDateBtn.addEventListener('click', () => this.openGoToDate());
 
 		// Config toggle button
 		const configBtn = controls.createEl('button', {
@@ -166,6 +181,9 @@ export class TimelineView extends ItemView {
 		this.headerSubtitleEl.toggleClass('moments-hidden', !hasFilter);
 		this.clearFilterBtn.toggleClass('moments-hidden', !hasFilter);
 		this.pinnedBtn.toggleClass('moments-hidden', !this.pinned);
+		// "Go to date" is a starting point from the unfiltered view; hide it
+		// while a filter is active (clear the filter to bring it back).
+		this.goToDateBtn.toggleClass('moments-hidden', !!hasFilter);
 	}
 
 	private toggleConfigPanel(): void {
@@ -842,10 +860,26 @@ export class TimelineView extends ItemView {
 	}
 
 	/**
-	 * Open the "Go to date" picker. Defaults to the current date filter (if any)
-	 * so reopening the modal starts where the timeline currently sits.
+	 * Open the "Go to date" picker. Prefers the native OS date picker for a
+	 * single-click experience, opened at the current date filter (if any).
+	 * Falls back to a modal where showPicker() isn't available (e.g. mobile).
 	 */
 	openGoToDate(): void {
+		const input = this.goToDateInput;
+		if (input && typeof input.showPicker === 'function') {
+			input.value = this.filter.startDate ?? formatDate(new Date());
+			try {
+				input.showPicker();
+				return;
+			} catch {
+				// showPicker() can throw when not permitted/unsupported — fall
+				// through to the modal below.
+			}
+		}
+		this.openGoToDateModal();
+	}
+
+	private openGoToDateModal(): void {
 		new GoToDateModal(this.app, {
 			initialDate: this.filter.startDate ?? undefined,
 			onSubmit: (isoDate) => this.goToDate(isoDate),
