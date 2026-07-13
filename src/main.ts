@@ -7,7 +7,7 @@ import { RIBBON_ICON, TIMELINE_VIEW_TYPE, COMMANDS } from './constants';
 import type { Moment, MomentCache, ImplicitMoment, TimelineFilter } from './types';
 import {
 	createMomentCache,
-	addMomentToCache,
+	replaceMomentsForFile,
 	removeMomentsForFile,
 	getMomentsForFile,
 	getMomentsInDateRange,
@@ -245,9 +245,7 @@ export default class MomentsPlugin extends Plugin {
 		for (const filePath of files) {
 			const file = this.app.vault.getAbstractFileByPath(filePath);
 			if (file instanceof TFile) {
-				// Remove existing moments for this file
-				removeMomentsForFile(this.momentCache, filePath);
-				// Re-scan the file
+				// scanFile clears the file's prior moments before re-adding.
 				await this.scanFile(file);
 			}
 			// Invalidate content cache for changed files
@@ -346,7 +344,11 @@ export default class MomentsPlugin extends Plugin {
 	 * Scan a single file for moments.
 	 */
 	private async scanFile(file: TFile): Promise<void> {
-		let momentsFound = 0;
+		// Collect this file's moments, then commit them through a single
+		// replace so scanning is idempotent. Without replace semantics the
+		// startup vault scan and the file-event batch can each add the same
+		// moment, duplicating it in the timeline.
+		const moments: Moment[] = [];
 
 		// Check if it's a standalone moment
 		if (isStandaloneMoment(file.name)) {
@@ -356,8 +358,7 @@ export default class MomentsPlugin extends Plugin {
 				file.stat.ctime
 			);
 			if (moment) {
-				addMomentToCache(this.momentCache, moment);
-				momentsFound++;
+				moments.push(moment);
 			}
 		}
 
@@ -394,7 +395,7 @@ export default class MomentsPlugin extends Plugin {
 					}
 
 					if (parsed) {
-						addMomentToCache(this.momentCache, {
+						moments.push({
 							type: 'inline',
 							date: parsed.date,
 							title: parsed.title,
@@ -403,21 +404,19 @@ export default class MomentsPlugin extends Plugin {
 							headingLine: heading.position.start.line,
 							firstSeen: now,
 						});
-						momentsFound++;
 					}
 				}
 			} else {
 				// Fallback: read file content if metadataCache not available
 				const content = await this.app.vault.cachedRead(file);
-				const moments = scanFileForMoments(content, file.path);
-				for (const moment of moments) {
-					addMomentToCache(this.momentCache, moment);
-					momentsFound++;
-				}
+				moments.push(...scanFileForMoments(content, file.path));
 			}
 		} catch (error) {
 			debug(`Failed to scan file ${file.path}`, error);
 		}
+
+		replaceMomentsForFile(this.momentCache, file.path, moments);
+		const momentsFound = moments.length;
 
 		if (momentsFound > 0) {
 			debug('Scanned file', { path: file.path, momentsFound });

@@ -40,6 +40,29 @@ export function addMomentToCache(cache: MomentCache, moment: Moment): void {
 }
 
 /**
+ * Replace all cached moments for a file with a new set.
+ *
+ * Clears any moments previously recorded for the file, then adds the provided
+ * ones. Scanning a file therefore stays idempotent: re-scanning yields the same
+ * cache state instead of appending duplicate moments. Passing an empty array
+ * clears the file from the cache (e.g. when its last moment is removed).
+ *
+ * @param cache - The cache to update
+ * @param filePath - The file whose moments are being replaced
+ * @param moments - The moments now present in the file (may be empty)
+ */
+export function replaceMomentsForFile(
+	cache: MomentCache,
+	filePath: string,
+	moments: Moment[]
+): void {
+	removeMomentsForFile(cache, filePath);
+	for (const moment of moments) {
+		addMomentToCache(cache, moment);
+	}
+}
+
+/**
  * Remove all moments for a specific file from the cache.
  *
  * @param cache - The cache to update
