@@ -19,7 +19,6 @@ export class TimelineView extends ItemView {
 	private headerSubtitleEl: HTMLElement;
 	private clearFilterBtn: HTMLButtonElement;
 	private goToDateBtn: HTMLButtonElement;
-	private goToDateInput: HTMLInputElement;
 	private configPanelEl: HTMLElement;
 	private configOpen: boolean = false;
 	private pinned = false;
@@ -129,20 +128,6 @@ export class TimelineView extends ItemView {
 		});
 		setIcon(configBtn, 'settings');
 		configBtn.addEventListener('click', () => this.toggleConfigPanel());
-
-		// Hidden native date input backing the "Go to date" button. Deliberately
-		// a child of the header root (not the controls row) so it can never add
-		// width between the buttons. Kept rendered (not display:none) so
-		// HTMLInputElement.showPicker() is permitted.
-		this.goToDateInput = header.createEl('input', {
-			cls: 'moments-date-input',
-			attr: { type: 'date', 'aria-hidden': 'true', tabindex: '-1' },
-		});
-		this.goToDateInput.addEventListener('change', () => {
-			if (this.goToDateInput.value) {
-				this.goToDate(this.goToDateInput.value);
-			}
-		});
 
 		// Config panel (hidden by default)
 		this.configPanelEl = header.createEl('div', { cls: 'moments-config-panel' });
@@ -860,26 +845,10 @@ export class TimelineView extends ItemView {
 	}
 
 	/**
-	 * Open the "Go to date" picker. Prefers the native OS date picker for a
-	 * single-click experience, opened at the current date filter (if any).
-	 * Falls back to a modal where showPicker() isn't available (e.g. mobile).
+	 * Open the "Go to date" modal, pre-filled with the current date filter
+	 * (if any). Submitting jumps the timeline to the chosen date.
 	 */
 	openGoToDate(): void {
-		const input = this.goToDateInput;
-		if (input && typeof input.showPicker === 'function') {
-			input.value = this.filter.startDate ?? formatDate(new Date());
-			try {
-				input.showPicker();
-				return;
-			} catch {
-				// showPicker() can throw when not permitted/unsupported — fall
-				// through to the modal below.
-			}
-		}
-		this.openGoToDateModal();
-	}
-
-	private openGoToDateModal(): void {
 		new GoToDateModal(this.app, {
 			initialDate: this.filter.startDate ?? undefined,
 			onSubmit: (isoDate) => this.goToDate(isoDate),

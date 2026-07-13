@@ -3,7 +3,6 @@ import { MomentsSettings, DEFAULT_SETTINGS } from './settings/settings';
 import { MomentsSettingTab } from './settings/settings-tab';
 import { registerCommands } from './commands/index';
 import { TimelineView } from './views/timeline-view';
-import { GoToDateModal } from './ui/go-to-date-modal';
 import { RIBBON_ICON, TIMELINE_VIEW_TYPE, COMMANDS } from './constants';
 import type { Moment, MomentCache, ImplicitMoment, TimelineFilter } from './types';
 import {
@@ -605,11 +604,7 @@ export default class MomentsPlugin extends Plugin {
 			.map((leaf) => leaf.view)
 			.find((v): v is TimelineView => v instanceof TimelineView);
 
-		if (!view) return;
-
-		new GoToDateModal(this.app, {
-			onSubmit: (isoDate) => view.goToDate(isoDate),
-		}).open();
+		view?.openGoToDate();
 	}
 
 	/**
