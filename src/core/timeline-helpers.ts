@@ -1,4 +1,37 @@
-import type { Moment } from '../types';
+import type { Moment, TimelineFilter } from '../types';
+
+/**
+ * Visibility state for the timeline header's controls, derived purely from the
+ * active filter and pinned state so it can be unit-tested without a DOM.
+ */
+export interface HeaderControlsState {
+	/** Whether any filter (date or related-file) is active. */
+	hasFilter: boolean;
+	/** Show the clear (X) button — whenever a filter is active. */
+	showClear: boolean;
+	/** Show the pin button — only when the filter is pinned. */
+	showPin: boolean;
+	/** Show the "Go to date" button — only from the unfiltered view. */
+	showGoToDate: boolean;
+}
+
+/**
+ * Compute which header controls should be visible for a given filter/pin state.
+ */
+export function computeHeaderControlsState(
+	filter: TimelineFilter,
+	pinned: boolean
+): HeaderControlsState {
+	const hasFilter = Boolean(
+		(filter.startDate && filter.endDate) || filter.relatedToFile
+	);
+	return {
+		hasFilter,
+		showClear: hasFilter,
+		showPin: pinned,
+		showGoToDate: !hasFilter,
+	};
+}
 
 /**
  * Get the previous month string (YYYY-MM) from a given month.

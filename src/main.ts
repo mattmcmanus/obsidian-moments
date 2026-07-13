@@ -604,7 +604,12 @@ export default class MomentsPlugin extends Plugin {
 			.map((leaf) => leaf.view)
 			.find((v): v is TimelineView => v instanceof TimelineView);
 
-		view?.openGoToDate();
+		if (!view) {
+			debug('Go to date: no timeline view found');
+			return;
+		}
+
+		view.promptForDate();
 	}
 
 	/**
