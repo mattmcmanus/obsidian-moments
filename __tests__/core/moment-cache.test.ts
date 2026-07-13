@@ -1,6 +1,7 @@
 import {
 	createMomentCache,
 	addMomentToCache,
+	replaceMomentsForFile,
 	removeMomentsForFile,
 	getMomentsForDate,
 	getMomentsForFile,
@@ -125,6 +126,76 @@ describe('removeMomentsForFile', () => {
 		const momentsForDate = cache.byDate.get('2026-02-04');
 		expect(momentsForDate).toHaveLength(1);
 		expect(momentsForDate?.[0]?.filePath).toBe('file2.md');
+	});
+});
+
+describe('replaceMomentsForFile', () => {
+	it('re-scanning a file yields one moment, not a duplicate', () => {
+		const cache = createMomentCache();
+		const moment = createTestMoment({ filePath: 'daily.md', date: '2026-02-04' });
+
+		// Two scans of the same file (e.g. startup scan + file-event batch).
+		replaceMomentsForFile(cache, 'daily.md', [moment]);
+		replaceMomentsForFile(cache, 'daily.md', [moment]);
+
+		expect(getMomentsForFile(cache, 'daily.md')).toHaveLength(1);
+		expect(cache.byDate.get('2026-02-04')).toHaveLength(1);
+	});
+
+	it('replaces the file’s previous moments with the new set', () => {
+		const cache = createMomentCache();
+		replaceMomentsForFile(cache, 'note.md', [
+			createTestMoment({ filePath: 'note.md', date: '2026-02-04', headingLine: 5 }),
+		]);
+
+		replaceMomentsForFile(cache, 'note.md', [
+			createTestMoment({ filePath: 'note.md', date: '2026-02-06', headingLine: 8 }),
+		]);
+
+		const moments = getMomentsForFile(cache, 'note.md');
+		expect(moments).toHaveLength(1);
+		expect(moments[0]?.date).toBe('2026-02-06');
+		expect(cache.byDate.has('2026-02-04')).toBe(false);
+	});
+
+	it('adds every moment when a file has more than one', () => {
+		const cache = createMomentCache();
+
+		replaceMomentsForFile(cache, 'note.md', [
+			createTestMoment({ filePath: 'note.md', date: '2026-02-04', headingLine: 5 }),
+			createTestMoment({ filePath: 'note.md', date: '2026-02-04', headingLine: 10 }),
+		]);
+
+		expect(getMomentsForFile(cache, 'note.md')).toHaveLength(2);
+		expect(cache.byDate.get('2026-02-04')).toHaveLength(2);
+	});
+
+	it('clears the file from the cache when given no moments', () => {
+		const cache = createMomentCache();
+		replaceMomentsForFile(cache, 'note.md', [
+			createTestMoment({ filePath: 'note.md', date: '2026-02-04' }),
+		]);
+
+		replaceMomentsForFile(cache, 'note.md', []);
+
+		expect(cache.byFile.has('note.md')).toBe(false);
+		expect(hasExplicitMoments(cache, 'note.md')).toBe(false);
+		expect(cache.byDate.has('2026-02-04')).toBe(false);
+	});
+
+	it('leaves moments from other files untouched', () => {
+		const cache = createMomentCache();
+		addMomentToCache(cache, createTestMoment({ filePath: 'other.md', date: '2026-02-04' }));
+
+		replaceMomentsForFile(cache, 'note.md', [
+			createTestMoment({ filePath: 'note.md', date: '2026-02-04' }),
+		]);
+		replaceMomentsForFile(cache, 'note.md', [
+			createTestMoment({ filePath: 'note.md', date: '2026-02-04' }),
+		]);
+
+		expect(getMomentsForFile(cache, 'other.md')).toHaveLength(1);
+		expect(cache.byDate.get('2026-02-04')).toHaveLength(2);
 	});
 });
 
