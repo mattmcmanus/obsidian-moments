@@ -23,7 +23,6 @@ export class TimelineView extends ItemView {
 	private configPanelEl: HTMLElement;
 	private configOpen: boolean = false;
 	private pinned = false;
-	private pinnedBtn: HTMLButtonElement;
 	private loadMoreObserver: IntersectionObserver | null = null;
 	private loadMoreSentinel: HTMLElement | null = null;
 	private filter: TimelineFilter = {
@@ -105,23 +104,15 @@ export class TimelineView extends ItemView {
 
 		const controls = bar.createEl('div', { cls: 'moments-header-controls' });
 
-		// Clear filter button (hidden by default)
+		// Clear-filter button. Its icon/label reflect state (see updateHeader):
+		// a pin when the filter is pinned, otherwise a filter-clear icon.
+		// Hidden entirely when no filter is active. Clicking always clears.
 		this.clearFilterBtn = controls.createEl('button', {
 			cls: 'clickable-icon',
 			attr: { 'aria-label': 'Clear filter' },
 		});
-		setIcon(this.clearFilterBtn, 'x');
 		this.clearFilterBtn.addClass('moments-hidden');
 		this.clearFilterBtn.addEventListener('click', () => this.clearFilter());
-
-		// Pin indicator (hidden by default, shown when filter is pinned)
-		this.pinnedBtn = controls.createEl('button', {
-			cls: 'clickable-icon',
-			attr: { 'aria-label': 'Unpin filter (resume auto-follow)' },
-		});
-		setIcon(this.pinnedBtn, 'pin');
-		this.pinnedBtn.addClass('moments-hidden');
-		this.pinnedBtn.addEventListener('click', () => this.clearFilter());
 
 		// Hidden native date input, opened directly by the button below so
 		// picking a date is a single interaction (no intermediate modal).
@@ -179,8 +170,16 @@ export class TimelineView extends ItemView {
 
 		this.headerSubtitleEl.textContent = 'Filtering moments for';
 		this.headerSubtitleEl.toggleClass('moments-hidden', !hasFilter);
+
+		// Single clear button whose icon reflects state: a pin when the filter
+		// is pinned (click to release it), otherwise a filter-clear icon.
 		this.clearFilterBtn.toggleClass('moments-hidden', !hasFilter);
-		this.pinnedBtn.toggleClass('moments-hidden', !this.pinned);
+		setIcon(this.clearFilterBtn, this.pinned ? 'pin' : 'filter-x');
+		this.clearFilterBtn.setAttribute(
+			'aria-label',
+			this.pinned ? 'Unpin and clear filter' : 'Clear filter'
+		);
+
 		// "Go to date" is a starting point from the unfiltered view; hide it
 		// while a filter is active (clear the filter to bring it back).
 		this.goToDateBtn.toggleClass('moments-hidden', !!hasFilter);

@@ -64,17 +64,20 @@
 	flex-shrink: 0;
 }
 
-/* Off-screen native date input backing the "Go to date" button. Kept in the
-   render tree (not display:none) so HTMLInputElement.showPicker() is allowed. */
+/* Off-screen native date input backing the "Go to date" button. Taken out of
+   flow (position:absolute) so it adds no width to the controls row, but kept in
+   the render tree (not display:none) so HTMLInputElement.showPicker() is allowed. */
 .moments-date-input {
-	width: 0;
-	height: 0;
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	min-width: 0;
 	padding: 0;
 	border: 0;
 	margin: 0;
 	opacity: 0;
 	overflow: hidden;
-	flex: 0 0 auto;
+	pointer-events: none;
 }
 
 .moments-config-panel {
