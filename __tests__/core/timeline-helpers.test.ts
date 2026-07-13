@@ -6,8 +6,19 @@ import {
 	formatActiveFileIndicator,
 	findMonthWithDates,
 	hasDatesBefore,
+	computeHeaderControlsState,
 } from '../../src/core/timeline-helpers';
-import type { Moment } from '../../src/types';
+import type { Moment, TimelineFilter } from '../../src/types';
+
+function createFilter(overrides: Partial<TimelineFilter> = {}): TimelineFilter {
+	return {
+		startDate: null,
+		endDate: null,
+		searchText: null,
+		relatedToFile: null,
+		...overrides,
+	};
+}
 
 function createTestMoment(overrides: Partial<Moment> = {}): Moment {
 	return {
@@ -215,5 +226,59 @@ describe('hasDatesBefore', () => {
 
 	it('returns false for an empty date set', () => {
 		expect(hasDatesBefore([], '2026-05')).toBe(false);
+	});
+});
+
+describe('computeHeaderControlsState', () => {
+	it('shows only Go to date when there is no filter', () => {
+		const state = computeHeaderControlsState(createFilter(), false);
+		expect(state).toEqual({
+			hasFilter: false,
+			showClear: false,
+			showPin: false,
+			showGoToDate: true,
+		});
+	});
+
+	it('shows clear (but not pin) for an unpinned date filter', () => {
+		const filter = createFilter({ startDate: '2026-02-04', endDate: '2026-02-04' });
+		const state = computeHeaderControlsState(filter, false);
+		expect(state).toEqual({
+			hasFilter: true,
+			showClear: true,
+			showPin: false,
+			showGoToDate: false,
+		});
+	});
+
+	it('shows both pin and clear for a pinned date filter', () => {
+		const filter = createFilter({ startDate: '2026-02-04', endDate: '2026-02-04' });
+		const state = computeHeaderControlsState(filter, true);
+		expect(state).toEqual({
+			hasFilter: true,
+			showClear: true,
+			showPin: true,
+			showGoToDate: false,
+		});
+	});
+
+	it('treats a related-file filter as an active filter', () => {
+		const state = computeHeaderControlsState(createFilter({ relatedToFile: 'note.md' }), false);
+		expect(state.hasFilter).toBe(true);
+		expect(state.showClear).toBe(true);
+		expect(state.showGoToDate).toBe(false);
+	});
+
+	it('does not treat a half-open date range as a filter', () => {
+		const state = computeHeaderControlsState(createFilter({ startDate: '2026-02-04' }), false);
+		expect(state.hasFilter).toBe(false);
+		expect(state.showGoToDate).toBe(true);
+	});
+
+	it('can show the pin even when only pinned state is set (defensive)', () => {
+		// pinned implies a filter in practice, but the helper is purely driven
+		// by its inputs — showPin follows pinned regardless.
+		const state = computeHeaderControlsState(createFilter(), true);
+		expect(state.showPin).toBe(true);
 	});
 });

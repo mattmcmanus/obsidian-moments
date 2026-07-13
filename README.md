@@ -50,6 +50,8 @@ Create a new dated note file with a single command.
 
 This creates a file like `2026-02-04 - Meeting notes.md` in your default notes location.
 
+> **Note:** Any note whose filename starts with a `YYYY-MM-DD` date is treated as a standalone moment — whether the date is followed by a dash (`2026-02-04 - Meeting notes.md`), just a space (`2026-02-04 Meeting notes.md`), or nothing (`2026-02-04.md`). If you already have date-prefixed notes in your vault, they will now appear on the timeline.
+
 ### Timeline View
 
 A sidebar panel (or full-page view) showing all your moments chronologically.
@@ -176,7 +178,7 @@ Open the timeline to see everything from a given day:
 | Create new standalone moment | — | Create a new dated note file |
 | Open timeline | — | Open timeline in sidebar |
 | Open timeline in new tab | — | Open timeline as full page |
-| Go to today | — | Jump timeline to today |
+| Go to date | — | Jump the timeline to a chosen date |
 
 ## Development
 

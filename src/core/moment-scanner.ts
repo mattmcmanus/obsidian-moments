@@ -3,9 +3,17 @@ import { parseHeadingForMoment } from './heading-parser';
 
 /**
  * Default pattern for standalone moment filenames.
- * Matches: "2026-02-04 - Title.md" or "2026-02-04.md"
+ *
+ * Matches a leading `YYYY-MM-DD` date, optionally followed by a title. The
+ * date and title are separated by whitespace and/or a dash, so all of these
+ * are recognized:
+ *   "2026-02-04.md"
+ *   "2026-02-04 - Title.md"
+ *   "2026-02-04 – Title.md"  (en-dash)
+ *   "2026-02-04 Title.md"     (space only, no dash)
+ * A date directly abutting other text (e.g. "2026-02-04abc.md") is not a match.
  */
-const DEFAULT_STANDALONE_PATTERN = /^(\d{4}-\d{2}-\d{2})(?:\s*[-–]\s*(.+))?\.md$/;
+const DEFAULT_STANDALONE_PATTERN = /^(\d{4}-\d{2}-\d{2})(?:[\s–-]+(.+))?\.md$/;
 
 /**
  * Check if a filename matches the standalone moment pattern.

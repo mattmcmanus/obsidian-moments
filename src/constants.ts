@@ -39,6 +39,7 @@ export const COMMANDS = {
 	CREATE_STANDALONE: 'create-standalone',
 	OPEN_TIMELINE: 'open-timeline',
 	OPEN_TIMELINE_TAB: 'open-timeline-tab',
+	GO_TO_DATE: 'go-to-date',
 } as const;
 
 /**

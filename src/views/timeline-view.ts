@@ -5,8 +5,9 @@ import { TIMELINE_VIEW_TYPE } from '../constants';
 import { formatDate } from '../core/date-parser';
 import { extractContentUnderHeading } from '../core/content-extractor';
 import { debug, debugTimed } from '../utils/debug';
-import { getPreviousMonth, groupMomentsByDate, formatActiveFileIndicator, findMonthWithDates, hasDatesBefore } from '../core/timeline-helpers';
+import { getPreviousMonth, groupMomentsByDate, formatActiveFileIndicator, findMonthWithDates, hasDatesBefore, computeHeaderControlsState } from '../core/timeline-helpers';
 import { timelineRenderDecision } from '../core/timeline-fingerprint';
+import { GoToDateModal } from '../ui/go-to-date-modal';
 
 /**
  * Timeline view displaying moments grouped by day.
@@ -17,10 +18,11 @@ export class TimelineView extends ItemView {
 	private headerTitleEl: HTMLElement;
 	private headerSubtitleEl: HTMLElement;
 	private clearFilterBtn: HTMLButtonElement;
+	private pinnedBtn: HTMLButtonElement;
+	private goToDateBtn: HTMLButtonElement;
 	private configPanelEl: HTMLElement;
 	private configOpen: boolean = false;
 	private pinned = false;
-	private pinnedBtn: HTMLButtonElement;
 	private loadMoreObserver: IntersectionObserver | null = null;
 	private loadMoreSentinel: HTMLElement | null = null;
 	private filter: TimelineFilter = {
@@ -102,7 +104,18 @@ export class TimelineView extends ItemView {
 
 		const controls = bar.createEl('div', { cls: 'moments-header-controls' });
 
-		// Clear filter button (hidden by default)
+		// Pin button — shown only when the filter is pinned. Clicking releases
+		// the pin (resumes auto-follow) but keeps the current filter in place.
+		this.pinnedBtn = controls.createEl('button', {
+			cls: 'clickable-icon',
+			attr: { 'aria-label': 'Unpin (resume auto-follow)' },
+		});
+		setIcon(this.pinnedBtn, 'pin');
+		this.pinnedBtn.addClass('moments-hidden');
+		this.pinnedBtn.addEventListener('click', () => this.unpinFilter());
+
+		// Clear button — shown whenever a filter is active. Clicking clears the
+		// filter entirely (and releases any pin), returning to Recent moments.
 		this.clearFilterBtn = controls.createEl('button', {
 			cls: 'clickable-icon',
 			attr: { 'aria-label': 'Clear filter' },
@@ -111,14 +124,13 @@ export class TimelineView extends ItemView {
 		this.clearFilterBtn.addClass('moments-hidden');
 		this.clearFilterBtn.addEventListener('click', () => this.clearFilter());
 
-		// Pin indicator (hidden by default, shown when filter is pinned)
-		this.pinnedBtn = controls.createEl('button', {
+		// Go to date button (only shown when no filter is active)
+		this.goToDateBtn = controls.createEl('button', {
 			cls: 'clickable-icon',
-			attr: { 'aria-label': 'Unpin filter (resume auto-follow)' },
+			attr: { 'aria-label': 'Go to date' },
 		});
-		setIcon(this.pinnedBtn, 'pin');
-		this.pinnedBtn.addClass('moments-hidden');
-		this.pinnedBtn.addEventListener('click', () => this.clearFilter());
+		setIcon(this.goToDateBtn, 'calendar');
+		this.goToDateBtn.addEventListener('click', () => this.promptForDate());
 
 		// Config toggle button
 		const configBtn = controls.createEl('button', {
@@ -135,28 +147,33 @@ export class TimelineView extends ItemView {
 	}
 
 	private updateHeader(): void {
-		const hasDateFilter = this.filter.startDate && this.filter.endDate;
-		const hasRelatedFilter = this.filter.relatedToFile;
-		const hasFilter = hasDateFilter || hasRelatedFilter;
+		const state = computeHeaderControlsState(this.filter, this.pinned);
 
-		if (hasRelatedFilter) {
-			const file = this.app.vault.getAbstractFileByPath(this.filter.relatedToFile!);
-			const basename = file instanceof TFile ? file.basename : this.filter.relatedToFile!.replace(/\.md$/, '');
+		if (this.filter.relatedToFile) {
+			const file = this.app.vault.getAbstractFileByPath(this.filter.relatedToFile);
+			const basename = file instanceof TFile ? file.basename : this.filter.relatedToFile.replace(/\.md$/, '');
 			this.headerTitleEl.textContent = basename;
-		} else if (hasDateFilter) {
+		} else if (this.filter.startDate && this.filter.endDate) {
 			if (this.filter.startDate === this.filter.endDate) {
-				this.headerTitleEl.textContent = this.formatDisplayDate(this.filter.startDate!);
+				this.headerTitleEl.textContent = this.formatDisplayDate(this.filter.startDate);
 			} else {
-				this.headerTitleEl.textContent = `${this.formatDisplayDate(this.filter.startDate!)} – ${this.formatDisplayDate(this.filter.endDate!)}`;
+				this.headerTitleEl.textContent = `${this.formatDisplayDate(this.filter.startDate)} – ${this.formatDisplayDate(this.filter.endDate)}`;
 			}
 		} else {
 			this.headerTitleEl.textContent = 'Recent moments';
 		}
 
 		this.headerSubtitleEl.textContent = 'Filtering moments for';
-		this.headerSubtitleEl.toggleClass('moments-hidden', !hasFilter);
-		this.clearFilterBtn.toggleClass('moments-hidden', !hasFilter);
-		this.pinnedBtn.toggleClass('moments-hidden', !this.pinned);
+		this.headerSubtitleEl.toggleClass('moments-hidden', !state.hasFilter);
+
+		// Pin and clear are distinct: the pin (shown only when pinned) releases
+		// the pin but keeps the filter; the clear button (X) clears the filter.
+		this.pinnedBtn.toggleClass('moments-hidden', !state.showPin);
+		this.clearFilterBtn.toggleClass('moments-hidden', !state.showClear);
+
+		// "Go to date" is a starting point from the unfiltered view; hide it
+		// while a filter is active (clear the filter to bring it back).
+		this.goToDateBtn.toggleClass('moments-hidden', !state.showGoToDate);
 	}
 
 	private toggleConfigPanel(): void {
@@ -778,6 +795,13 @@ export class TimelineView extends ItemView {
 	}
 
 	private renderEmptyState(): void {
+		// A filter that simply matched nothing is not an empty vault — say so,
+		// and offer to clear rather than implying there are no moments at all.
+		if (this.filter.relatedToFile || (this.filter.startDate && this.filter.endDate)) {
+			this.renderFilteredEmptyState();
+			return;
+		}
+
 		const emptyState = this.timelineContentEl.createEl('div', { cls: 'moments-empty-state' });
 
 		emptyState.createEl('div', { cls: 'moments-empty-state-title', text: 'No moments yet' });
@@ -796,6 +820,30 @@ export class TimelineView extends ItemView {
 			};
 			app.commands.executeCommandById('moments:create-standalone');
 		});
+	}
+
+	/** Empty state shown when an active filter matched no moments. */
+	private renderFilteredEmptyState(): void {
+		const emptyState = this.timelineContentEl.createEl('div', { cls: 'moments-empty-state' });
+
+		let title: string;
+		if (this.filter.relatedToFile) {
+			const file = this.app.vault.getAbstractFileByPath(this.filter.relatedToFile);
+			const basename = file instanceof TFile ? file.basename : this.filter.relatedToFile.replace(/\.md$/, '');
+			title = `No moments related to ${basename}`;
+		} else if (this.filter.startDate === this.filter.endDate) {
+			title = `No moments on ${this.formatDisplayDate(this.filter.startDate!)}`;
+		} else {
+			title = `No moments between ${this.formatDisplayDate(this.filter.startDate!)} and ${this.formatDisplayDate(this.filter.endDate!)}`;
+		}
+
+		emptyState.createEl('div', { cls: 'moments-empty-state-title', text: title });
+
+		const clearBtn = emptyState.createEl('button', {
+			cls: 'mod-cta',
+			text: 'Clear filter',
+		});
+		clearBtn.addEventListener('click', () => this.clearFilter());
 	}
 
 	private async openMoment(moment: Moment): Promise<void> {
@@ -832,6 +880,26 @@ export class TimelineView extends ItemView {
 		void this.renderTimeline();
 	}
 
+	/**
+	 * Open the "Go to date" modal, pre-filled with the current date filter
+	 * (if any). Submitting jumps the timeline to the chosen date.
+	 */
+	promptForDate(): void {
+		new GoToDateModal(this.app, {
+			initialDate: this.filter.startDate ?? undefined,
+			onSubmit: (isoDate) => this.goToDate(isoDate),
+		}).open();
+	}
+
+	/**
+	 * Jump the timeline to a specific day and pin the filter so it sticks
+	 * (auto-follow won't override an explicit navigation).
+	 */
+	goToDate(isoDate: string): void {
+		debug('Go to date', { isoDate });
+		this.applyFilter({ startDate: isoDate, endDate: isoDate, relatedToFile: null }, true);
+	}
+
 	setDateFilter(startDate: string | null, endDate: string | null): void {
 		if (this.pinned) {
 			debug('Auto-follow skipped (filter pinned)');
@@ -854,6 +922,18 @@ export class TimelineView extends ItemView {
 		debug('Clearing filter and unpinning');
 		this.pinned = false;
 		this.applyFilter({ startDate: null, endDate: null, relatedToFile: null });
+	}
+
+	/**
+	 * Release the pin but keep the current filter in place. Auto-follow resumes,
+	 * so the next opened note updates the timeline; until then the view is
+	 * unchanged. Only the header (pin button) needs refreshing.
+	 */
+	unpinFilter(): void {
+		if (!this.pinned) return;
+		debug('Unpinning filter (keeping current filter)');
+		this.pinned = false;
+		this.updateHeader();
 	}
 
 	refresh(): void {

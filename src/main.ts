@@ -101,6 +101,15 @@ export default class MomentsPlugin extends Plugin {
 			},
 		});
 
+		this.addCommand({
+			id: COMMANDS.GO_TO_DATE,
+			name: 'Go to date',
+			icon: 'calendar-search',
+			callback: () => {
+				void this.openGoToDate();
+			},
+		});
+
 		// Add ribbon icon with menu
 		this.addRibbonIcon(RIBBON_ICON, 'Moments', (evt: MouseEvent) => {
 			const menu = new Menu();
@@ -581,6 +590,25 @@ export default class MomentsPlugin extends Plugin {
 		});
 
 		void workspace.revealLeaf(leaf);
+	}
+
+	/**
+	 * Open the timeline (if needed) and prompt for a date to jump to.
+	 */
+	async openGoToDate(): Promise<void> {
+		await this.openTimeline(this.settings.defaultViewMode);
+
+		const view = this.app.workspace
+			.getLeavesOfType(TIMELINE_VIEW_TYPE)
+			.map((leaf) => leaf.view)
+			.find((v): v is TimelineView => v instanceof TimelineView);
+
+		if (!view) {
+			debug('Go to date: no timeline view found');
+			return;
+		}
+
+		view.promptForDate();
 	}
 
 	/**
