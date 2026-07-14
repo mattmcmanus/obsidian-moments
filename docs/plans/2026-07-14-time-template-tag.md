@@ -104,8 +104,15 @@ Inline moments section gains two controls:
 
 - **Include time** — toggle, default off. When on, new inline moments stamp the
   current time into the date link.
-- **Time format** — text field, default `HH:mm`, Moment tokens, shown when
-  Include time is on. Mirrors the existing Date format control.
+- **Time format** — text field, default `HH:mm`, Moment tokens. Mirrors the
+  existing Date format control.
+
+**Time format only appears when Include time is on.** Follow the existing
+`targetSectionMode` pattern in `settings-tab.ts`: the Include time toggle's
+`onChange` saves and then calls `this.display()` to re-render the tab, and the
+Time format row is only added to the group when `settings.includeTime` is true.
+(The alternative `moments-hidden` CSS toggle is also in use, but conditional
+`addSetting` matches the closest precedent and avoids rendering a dead field.)
 
 The heading-template description drops its `{{time}}` mention, since time is no
 longer a manual placeholder.
