@@ -80,17 +80,23 @@ scale regardless of type.
 ## Parsing
 
 To sort inline moments by time, the scanner recovers the time from the heading.
-The alias makes this deterministic — the datetime sits in a known slot
-(`[[date|date time]]`) with a known format (the `timeFormat` setting) — rather
-than a fragile scan of free heading text.
+Both date-link styles are supported symmetrically — the time always sits
+adjacent to the date, so recovery attempts the configured `timeFormat` at that
+one known spot rather than scanning free heading text.
 
-- `heading-parser.ts`: extend the wiki-link date pattern to capture an optional
-  alias, `[[(\d{4}-\d{2}-\d{2})(?:\|([^\]]*))?]]`. When an alias is present, the
-  time is the alias with the leading date removed.
-- `moment-scanner.ts`: carry the recovered `time` string onto the `Moment`.
-- Sorting converts `date + time` to an epoch using the configured
-  date/time formats; a parse failure falls back to `firstSeen`. Headings with no
-  alias time keep working unchanged.
+- **Wiki-link style** — `[[2026-07-14|2026-07-14 14:30]]`. Extend the wiki-link
+  date pattern to capture an optional alias,
+  `[[(\d{4}-\d{2}-\d{2})(?:\|([^\]]*))?]]`. When an alias is present, the time is
+  the alias with the leading date removed.
+- **Plain style** — `2026-07-14 14:30 Call`. The date still matches at the start
+  of the heading text; the time is the token immediately after it. Parse that
+  token against `timeFormat`; when it parses, treat it as the time and strip it
+  from the title, otherwise leave the whole remainder as the title.
+- `moment-scanner.ts`: carry the recovered `time` string onto the `Moment` for
+  either style.
+- Sorting converts `date + time` to an epoch using the configured date/time
+  formats; a parse failure falls back to `firstSeen`. Headings with no time
+  (either style) keep working unchanged.
 
 ## Settings
 
@@ -120,11 +126,14 @@ simply sort by `firstSeen` as before.
 ## Testing
 
 - `template-engine.test.ts`: date renders as aliased datetime when a time is
-  present; unchanged when absent; plain-style variant; filenames unaffected.
-- `heading-parser.test.ts`: alias time extracted; bare wiki-link still parses;
-  title unaffected by the alias.
-- `moment-cache.test.ts`: within-day order by time (latest first); missing-time
-  fallback to `firstSeen`; standalone moments order by ctime.
+  present; plain style renders `date time`; unchanged when time absent;
+  filenames unaffected.
+- `heading-parser.test.ts`: alias time extracted; plain-style time extracted and
+  stripped from title; a plain-style title that isn't a time is left intact;
+  bare wiki-link and bare plain date still parse.
+- `moment-cache.test.ts`: within-day order by time (latest first) for both
+  styles; missing-time fallback to `firstSeen`; standalone moments order by
+  ctime.
 - Run `npm run lint && npm test && npm run build`.
 
 ## Open questions
