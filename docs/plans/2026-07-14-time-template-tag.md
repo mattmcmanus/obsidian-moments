@@ -68,14 +68,24 @@ The timeline is reverse-chronological and stays that way. The only change is the
 within-day tiebreak: sort by the moment's time, latest first, instead of by
 scan order.
 
-- **Inline** moments: time recovered from the heading (see Parsing). Moments
-  without a time fall back to `firstSeen`.
-- **Standalone** moments: `firstSeen` already holds file ctime, so they sort by
-  creation time with no extra work.
+The within-day sort the timeline actually renders lives in `groupMomentsByDate`
+(`timeline-helpers.ts:113`), re-run every render — **not** `moment-cache.ts`.
+The "all moments" display path in `main.ts` pushes `byDate` entries in insertion
+order and relies on that re-sort. Both must be addressed:
 
-Sort key per moment: the parsed date+time as an epoch when available, else
-`firstSeen`. Compare descending. This keeps every moment on one comparable
-scale regardless of type.
+- Fix the comparator in `groupMomentsByDate` (primary).
+- Route the `main.ts` all-moments path through `getMomentsForDate` so ordering
+  is centralised, and align the secondary sorts in `moment-cache.ts`.
+
+Each moment carries a precomputed numeric `sortTime` (date+time epoch) set at
+scan time; the comparator is `(b.sortTime ?? b.firstSeen) - (a.sortTime ?? a.firstSeen)`,
+descending. Precomputing keeps the comparators config-free (they have no access
+to `timeFormat`).
+
+- **Inline** moments: `sortTime` from the recovered heading time (see Parsing);
+  absent when there is no parseable time, so they fall back to `firstSeen`.
+- **Standalone** moments: no `sortTime`; `firstSeen` already holds file ctime,
+  so they sort by creation time with no extra work.
 
 ## Parsing
 
@@ -92,11 +102,27 @@ one known spot rather than scanning free heading text.
   of the heading text; the time is the token immediately after it. Parse that
   token against `timeFormat`; when it parses, treat it as the time and strip it
   from the title, otherwise leave the whole remainder as the title.
-- `moment-scanner.ts`: carry the recovered `time` string onto the `Moment` for
-  either style.
-- Sorting converts `date + time` to an epoch using the configured date/time
-  formats; a parse failure falls back to `firstSeen`. Headings with no time
-  (either style) keep working unchanged.
+- `moment-scanner.ts`: carry the recovered `time` and `sortTime` onto the
+  `Moment` for either style.
+- Sorting uses the precomputed `sortTime` epoch; a parse failure leaves it unset
+  and the moment falls back to `firstSeen`. Headings with no time keep working
+  unchanged.
+
+**Two scan paths.** Production scans via the `metadataCache` heading loop in
+`main.ts:365`, and `scanFileForMoments` is only the raw-content fallback
+(`main.ts:412`). Both must recover time, so recovery lives in the shared
+`parseHeadingForMoment` (given an optional `timeFormat`) plus a small addition to
+`main.ts`'s bracket-stripped-link fallback (read the link's `displayText`).
+Note: metadataCache strips wiki-link brackets, so in the running app an aliased
+heading `[[date|date time]]` reaches the parser as plain `date time` text and is
+recovered through the **plain branch**. The wiki-link-alias regex fires only in
+the raw-content fallback and in unit tests — both are still implemented.
+
+Config threading follows the existing core convention (explicit format params,
+e.g. `parseDate(str, format)`): add an optional `timeFormat?` param that, when
+omitted, disables time recovery — keeping every current single-arg test call
+green. `dateFormat` is not needed for recovery because the date is matched as
+ISO by regex.
 
 ## Settings
 
@@ -119,9 +145,56 @@ longer a manual placeholder.
 
 ## Types
 
-- `Moment` gains `time?: string` (the recovered/printed time).
+- `Moment` gains `time?: string` (the recovered/printed time) and
+  `sortTime?: number` (precomputed date+time epoch for the within-day sort;
+  absent when there is no parseable time).
 - `TemplateVariables.time` is now populated for inline headings; the unused
   `datetime` field can go.
+
+## Implementation (verified against code)
+
+Ordered, file-by-file. Line numbers are current at time of writing.
+
+1. **`src/core/date-parser.ts`** — add `DEFAULT_TIME_FORMAT = 'HH:mm'`, a
+   `formatTime(date, format?)` helper, and
+   `parseDateTimeToEpoch(date, time, timeFormat): number | null` (strict
+   `moment(`${date} ${time}`, `YYYY-MM-DD ${timeFormat}`, true)`, returns
+   `.valueOf()` or `null`).
+2. **`src/constants.ts`** — re-export `DEFAULT_TIME_FORMAT` (line 16 block).
+3. **`src/types.ts`** — add `time?` and `sortTime?` to `Moment`.
+4. **`src/core/heading-parser.ts`** — `ParsedMomentHeading` gains `time?`.
+   Widen `WIKILINK_DATE_PATTERN` to capture an optional alias
+   (`/\[\[(\d{4}-\d{2}-\d{2})(?:\|([^\]]*))?\]\]/`). `parseHeadingForMoment(line,
+   timeFormat?)`: wiki-link branch recovers time from the alias only when it
+   starts with the date (`alias.slice(date.length).trim()`), so custom aliases
+   are never misread; plain branch strict-parses the first remainder token
+   against `timeFormat`, strips it from the title on success, leaves it otherwise.
+   Recovery is skipped entirely when `timeFormat` is omitted.
+5. **`src/core/moment-scanner.ts`** — `scanFileForMoments(content, filePath,
+   timeFormat?)` passes `timeFormat` through and stamps `time` + `sortTime`.
+   `createStandaloneMomentFromFile` unchanged.
+6. **`src/main.ts`** — thread `this.settings.timeFormat` into the metadataCache
+   loop (`parseHeadingForMoment` at line 374) and the raw-content fallback (line
+   412); stamp `time`/`sortTime` on the pushed moment (line 397); in the
+   bracket-stripped-link fallback (line 378) recover time from
+   `dateLink.displayText`; route the all-moments display path (line 450) through
+   `getMomentsForDate`.
+7. **`src/core/timeline-helpers.ts`** — comparator at line 113 →
+   `(b.sortTime ?? b.firstSeen) - (a.sortTime ?? a.firstSeen)`.
+8. **`src/core/moment-cache.ts`** — same tiebreak in `getMomentsForDate` (line
+   112) and `getMomentsInDateRange` (line 152).
+9. **`src/core/template-engine.ts`** — fold time into the date in
+   `buildHeadingString`: wiki-link+time → `[[date|date time]]`, plain+time →
+   `date time`, no-time unchanged. Remove unused `TemplateVariables.datetime`.
+   `buildFilename` and `evaluateCoreTemplate` unchanged.
+10. **`src/commands/add-inline.ts`** — set
+    `time: settings.includeTime ? formatTime(new Date(), settings.timeFormat) : undefined`.
+11. **`src/commands/standalone-note.ts`, `src/ui/moment-modal.ts`** — no change.
+12. **`src/settings/settings.ts`** — add `includeTime: boolean` (default false)
+    and `timeFormat: string` (default `DEFAULT_TIME_FORMAT`).
+13. **`src/settings/settings-tab.ts`** — Include time toggle (saves +
+    `this.display()`), Time format row added only when `includeTime` is true;
+    drop `{{time}}` from the heading-template description.
 
 ## Round-trip safety
 
@@ -143,8 +216,21 @@ simply sort by `firstSeen` as before.
   ctime.
 - Run `npm run lint && npm test && npm run build`.
 
-## Open questions
+## Risks & edge cases
 
-- **Format changes over time:** if a user changes `timeFormat` later, older
-  aliases carry the old format and may not re-parse for sorting. They fall back
-  to `firstSeen` — acceptable, or worth normalising on rescan?
+- **Non-ISO `dateFormat` (pre-existing).** The scanner detects ISO dates only.
+  With a format like `MM/DD/YYYY`, headings are never re-detected — the moment,
+  not just its time, disappears from the timeline. Inherited limitation; out of
+  scope, worth a doc note.
+- **`timeFormat` with a space** (e.g. `h:mm A` → `2:30 PM`) breaks the plain
+  branch's single-token recovery. Mitigation: when `timeFormat` contains
+  whitespace, also try the first two tokens. Wiki-link-alias recovery is
+  unaffected (it slices by the date prefix).
+- **Title beginning with a time-like token** (plain style, `2026-07-14 12:00
+  countdown` under `HH:mm`) strips `12:00` as the time. Inherent to positional
+  recovery; rare and acceptable.
+- **Backdated date, current clock time.** A moment dated yesterday stamps
+  today's time (design: stamp current time, no manual entry). Expected.
+- **Stale aliases after a `timeFormat` change.** Old entries carry the old
+  format and may not re-parse; the strict-parse `?? firstSeen` fallback handles
+  this gracefully. No migration now (revisit if reported).
