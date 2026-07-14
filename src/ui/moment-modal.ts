@@ -63,7 +63,7 @@ export class MomentModal extends Modal {
 						this.titleText = value;
 					});
 				new NoteLinkSuggest(this.app, text.inputEl);
-				setTimeout(() => text.inputEl.focus(), MODAL_FOCUS_DELAY_MS);
+				window.setTimeout(() => text.inputEl.focus(), MODAL_FOCUS_DELAY_MS);
 			});
 		titleSetting.settingEl.addClass('moments-modal-title-setting');
 

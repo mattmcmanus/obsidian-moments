@@ -40,7 +40,7 @@ export class GoToDateModal extends Modal {
 				text.inputEl.addEventListener('change', () => {
 					this.dateValue = text.inputEl.value;
 				});
-				setTimeout(() => text.inputEl.focus(), MODAL_FOCUS_DELAY_MS);
+				window.setTimeout(() => text.inputEl.focus(), MODAL_FOCUS_DELAY_MS);
 			});
 
 		new Setting(contentEl)

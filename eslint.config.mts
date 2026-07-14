@@ -26,6 +26,12 @@ export default tseslint.config(
 		},
 	},
 	...obsidianmd.configs.recommended,
+	// Type-checked rules mirror Obsidian's automated plugin scorecard, which
+	// runs typescript-eslint's type-aware checks (no-unsafe-*, no-unsafe-return).
+	{
+		files: ["src/**/*.ts", "__tests__/**/*.ts"],
+		extends: [tseslint.configs.recommendedTypeChecked],
+	},
 	{
 		files: ["src/**/*.ts"],
 		linterOptions: {
