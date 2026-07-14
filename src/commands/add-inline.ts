@@ -36,7 +36,7 @@ function positionCursorAfterHeading(app: App, content: string, heading: string):
 	const headingLine = lines.findIndex((line) => line === heading);
 
 	if (headingLine !== -1) {
-		setTimeout(() => {
+		window.setTimeout(() => {
 			const activeView = app.workspace.getActiveViewOfType(MarkdownView);
 			if (activeView?.editor) {
 				const cursorLine = headingLine + 1;
