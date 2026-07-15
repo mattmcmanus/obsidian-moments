@@ -94,10 +94,16 @@ Always run `npm run lint && npm test && npm run build` after changes.
 
 ## Versioning & releases
 
-- Bump `version` in `manifest.json` (SemVer) and update `versions.json` to map plugin version → minimum app version.
-- Create a GitHub release whose tag exactly matches `manifest.json`'s `version`. Do not use a leading `v`.
-- Attach `manifest.json`, `main.js`, and `styles.css` (if present) to the release as individual assets.
-- After the initial release, follow the process to add/update your plugin in the community catalog as required.
+**Releases are produced by the `.github/workflows/release.yml` workflow, which triggers on any pushed tag.** The workflow builds the plugin, attests build provenance for `main.js`/`styles.css` (this is what earns the "verified GitHub artifact attestation" marks on the community scorecard), and runs `gh release create` with the `dist/` assets attached. **Never run `gh release create` yourself** — doing so makes the workflow's create step fail with "a release with the same tag name already exists" and risks publishing an asset the attestation does not cover.
+
+Release a new version from `main` (example: `0.5.1`):
+
+1. **Bump the version** — `npm version 0.5.1 --no-git-tag-version`. This updates `package.json` and runs the `version` script (`version-bump.mjs`), which sets `manifest.json`'s `version` and appends to `versions.json` **only when `minAppVersion` changed** (the script skips `versions.json` when the current `minAppVersion` is already a value in it — so consecutive releases at the same `minAppVersion` correctly add no entry; do not "fix" this by hand).
+2. **Verify** — `npm run lint && npm test && npm run build`.
+3. **Commit** the bump to `main` with the version as the message (e.g. `0.5.1`), matching the existing history, and push `main`.
+4. **Tag and push** — the tag must exactly match `manifest.json`'s `version`, with **no leading `v`**: `git tag 0.5.1 && git push origin 0.5.1`. This is what triggers the release workflow.
+5. **Watch the workflow** — `gh run watch` (or `gh run list --workflow=release.yml`). When it completes it has created the GitHub release with `main.js`, `manifest.json`, and `styles.css` attached.
+6. **Add release notes** — the workflow creates the release with an empty body, so add notes afterward: `gh release edit 0.5.1 --notes "..."`. Obsidian's scorecard flags a release with no description.
 
 ## Security, privacy, and compliance
 
