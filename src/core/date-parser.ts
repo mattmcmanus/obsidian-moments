@@ -1,4 +1,4 @@
-import { moment } from 'obsidian';
+import { moment } from './moment';
 
 /**
  * Default date format (ISO 8601).

@@ -1,5 +1,5 @@
-import { moment } from 'obsidian';
 import { formatDate } from './date-parser';
+import { moment } from './moment';
 
 /**
  * Types of periodic notes
